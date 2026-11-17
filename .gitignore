@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+# Corpus de prueba real del usuario: NUNCA se sube
+corpus/
+# Datos locales de la app (aprendizaje, trabajos reanudables)
+datos/
+# Recursos que descarga scripts/preparar_build.py (van en el paquete, no en git)
+recursos/modelos/
+recursos/tesseract/

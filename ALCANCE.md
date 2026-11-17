@@ -1,7 +1,7 @@
 # PROMPT DE ALCANCE — eh-ocr (v6)
 
 > Aplicativo independiente. No forma parte de txt2media ni depende de él.
-> Estado: **alcance cerrado** — pendiente de aprobación para iniciar el desarrollo.
+> Estado: **Fase 1 (núcleo) desarrollada** — ver README.md. Siguientes: fases 2–4.
 
 ## Rol
 Actúa como arquitecto y desarrollador senior de sistemas de reconocimiento de documentos.

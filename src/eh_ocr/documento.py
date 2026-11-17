@@ -1,0 +1,201 @@
+"""Apertura de documentos (PDF e imágenes) y acceso página a página.
+
+Las páginas se renderizan bajo demanda: un documento de miles de páginas
+nunca se carga entero en memoria.
+"""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass
+from pathlib import Path
+
+import numpy as np
+import pypdfium2 as pdfium
+from PIL import Image, ImageOps, ImageSequence
+
+from . import config
+
+EXT_PDF = {".pdf"}
+EXT_IMAGEN = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+EXT_ADMITIDAS = EXT_PDF | EXT_IMAGEN
+EXT_HEIC = {".heic", ".heif"}
+
+# PDFium no es seguro entre hilos: todo acceso pasa por este candado.
+_PDFIUM = threading.RLock()
+
+# Si una imagen no indica su resolución, se asume que ocupa un ancho A4.
+ANCHO_A4_PULGADAS = 8.27
+
+
+class ErrorDocumento(Exception):
+    """Error comprensible para el usuario."""
+
+
+class ErrorContrasena(ErrorDocumento):
+    def __init__(self, ruta: Path, incorrecta: bool = False):
+        self.ruta = ruta
+        self.incorrecta = incorrecta
+        msg = "La contraseña no es correcta." if incorrecta else "El PDF está protegido con contraseña."
+        super().__init__(msg)
+
+
+class FormatoNoAdmitido(ErrorDocumento):
+    pass
+
+
+def es_admitido(ruta: Path) -> bool:
+    return Path(ruta).suffix.lower() in EXT_ADMITIDAS
+
+
+def listar_archivos(rutas: list[Path]) -> list[Path]:
+    """Expande carpetas (recursivo) y conserva el orden; incluye HEIC para avisar."""
+    salida: list[Path] = []
+    for ruta in rutas:
+        ruta = Path(ruta)
+        if ruta.is_dir():
+            for hijo in sorted(ruta.rglob("*")):
+                if hijo.is_file() and hijo.suffix.lower() in EXT_ADMITIDAS | EXT_HEIC:
+                    salida.append(hijo)
+        elif ruta.is_file():
+            salida.append(ruta)
+    return salida
+
+
+@dataclass
+class Pagina:
+    documento: "Documento"
+    indice: int  # 0-based
+
+    @property
+    def numero(self) -> int:
+        return self.indice + 1
+
+    def tamano_pt(self) -> tuple[float, float]:
+        return self.documento._tamano_pt(self.indice)
+
+    def imagen(self, dpi: int = config.DPI_RENDER) -> tuple[np.ndarray, float]:
+        """Imagen RGB (alto, ancho, 3) y su resolución efectiva en DPI."""
+        return self.documento._imagen(self.indice, dpi)
+
+    def caracteres_digitales(self) -> int:
+        return self.documento._caracteres(self.indice)
+
+    def tiene_imagen_de_pagina_completa(self) -> bool:
+        return self.documento._imagen_completa(self.indice)
+
+    def es_foto(self) -> bool:
+        return self.documento._es_foto
+
+
+class Documento:
+    """Envoltorio común para PDF e imágenes (TIFF multipágina incluido)."""
+
+    def __init__(self, ruta: Path, contrasena: str | None = None):
+        self.ruta = Path(ruta)
+        ext = self.ruta.suffix.lower()
+        self.contrasena = contrasena
+        self._pdf: pdfium.PdfDocument | None = None
+        self._frames: list[Image.Image] = []
+        self._es_foto = False
+        if ext in EXT_HEIC:
+            raise FormatoNoAdmitido(
+                "Formato HEIC no admitido. Guarda o comparte la foto como JPG desde el teléfono."
+            )
+        if ext in EXT_PDF:
+            self.es_pdf = True
+            try:
+                self._pdf = pdfium.PdfDocument(str(self.ruta), password=contrasena)
+            except pdfium.PdfiumError as e:
+                if "password" in str(e).lower():
+                    raise ErrorContrasena(self.ruta, incorrecta=contrasena is not None) from e
+                raise ErrorDocumento(f"No se pudo abrir el PDF (archivo dañado o incompleto): {e}") from e
+        elif ext in EXT_IMAGEN:
+            self.es_pdf = False
+            try:
+                img = Image.open(self.ruta)
+                exif = img.getexif()
+                # Marca/modelo de cámara => foto de celular
+                self._es_foto = bool(exif.get(0x010F) or exif.get(0x0110))
+                for frame in ImageSequence.Iterator(img):
+                    f = ImageOps.exif_transpose(frame.copy()) or frame.copy()
+                    f.info["dpi"] = img.info.get("dpi")
+                    self._frames.append(f)
+            except Exception as e:
+                raise ErrorDocumento(f"No se pudo abrir la imagen (archivo dañado o formato raro): {e}") from e
+        else:
+            raise FormatoNoAdmitido(f"Formato {ext or 'sin extensión'} no admitido.")
+
+    # --- API pública ---------------------------------------------------
+    def __len__(self) -> int:
+        return len(self._pdf) if self._pdf is not None else len(self._frames)
+
+    def paginas(self):
+        for i in range(len(self)):
+            yield Pagina(self, i)
+
+    def pagina(self, indice: int) -> Pagina:
+        return Pagina(self, indice)
+
+    def cerrar(self) -> None:
+        if self._pdf is not None:
+            with _PDFIUM:
+                self._pdf.close()
+            self._pdf = None
+        self._frames.clear()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.cerrar()
+
+    # --- internos (todo acceso a PDFium bajo candado) --------------------
+    def _dpi_imagen(self, frame: Image.Image) -> float:
+        dpi = frame.info.get("dpi")
+        if dpi and dpi[0] and float(dpi[0]) > 30:
+            return float(dpi[0])
+        return frame.width / ANCHO_A4_PULGADAS
+
+    def _tamano_pt(self, i: int) -> tuple[float, float]:
+        if self._pdf is not None:
+            with _PDFIUM:
+                w, h = self._pdf[i].get_size()
+            return float(w), float(h)
+        f = self._frames[i]
+        dpi = self._dpi_imagen(f)
+        return f.width * 72 / dpi, f.height * 72 / dpi
+
+    def _imagen(self, i: int, dpi: int) -> tuple[np.ndarray, float]:
+        if self._pdf is not None:
+            with _PDFIUM:
+                bmp = self._pdf[i].render(scale=dpi / 72)
+                img = bmp.to_pil().convert("RGB")
+            return np.asarray(img), float(dpi)
+        f = self._frames[i]
+        return np.asarray(f.convert("RGB")), self._dpi_imagen(f)
+
+    def _caracteres(self, i: int) -> int:
+        if self._pdf is None:
+            return 0
+        with _PDFIUM:
+            tp = self._pdf[i].get_textpage()
+            try:
+                texto = tp.get_text_range()
+            finally:
+                tp.close()
+        return sum(1 for c in texto if c.isalnum())
+
+    def _imagen_completa(self, i: int) -> bool:
+        """¿La página es (casi) toda una imagen? => PDF escaneado, aunque tenga capa de texto."""
+        if self._pdf is None:
+            return True
+        with _PDFIUM:
+            pagina = self._pdf[i]
+            w, h = pagina.get_size()
+            area_pagina = max(w * h, 1)
+            for obj in pagina.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE], max_depth=2):
+                x0, y0, x1, y1 = obj.get_pos()
+                if (x1 - x0) * (y1 - y0) >= 0.6 * area_pagina:
+                    return True
+        return False

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eh-ocr"
+version = "0.1.0"
+description = "OCR autónomo para Windows: gratuito, sin internet, portable."
+requires-python = ">=3.13"
+dependencies = [
+    "rapidocr>=3.10",
+    "onnxruntime>=1.20; sys_platform != 'win32'",
+    "onnxruntime-directml>=1.20; sys_platform == 'win32'",
+    "opencv-python-headless>=4.10",
+    "numpy>=2.0",
+    "Pillow>=11",
+    "pdfplumber>=0.11",
+    "pypdfium2>=4.30",
+    "pikepdf>=9",
+    "reportlab>=4",
+    "python-docx>=1.1",
+    "pyspellchecker>=0.8",
+    "PySide6-Essentials>=6.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6.10"]
+
+[project.gui-scripts]
+eh-ocr = "eh_ocr.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
