@@ -245,9 +245,13 @@ class PaginaCola(QWidget):
         self.tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabla.setShowGrid(False)
+        self.tabla.setTextElideMode(Qt.TextElideMode.ElideMiddle)  # se ve inicio y final del nombre
+        self.tabla.setWordWrap(False)
         cab_t = self.tabla.horizontalHeader()
         cab_t.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         cab_t.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        cab_t.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        cab_t.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla.cellDoubleClicked.connect(lambda fila, _c: self.revisar.emit(fila))
         cuerpo.addWidget(self.tabla)
 
@@ -265,9 +269,10 @@ class PaginaCola(QWidget):
         ll.addWidget(self.btn_abrir)
         self.btn_revisar.clicked.connect(self._revisar_seleccion)
         self.btn_abrir.clicked.connect(self._abrir_resultados)
-        lateral.setMinimumWidth(280)
+        lateral.setMinimumWidth(240)
+        lateral.setMaximumWidth(320)
         cuerpo.addWidget(lateral)
-        cuerpo.setStretchFactor(0, 3)
+        cuerpo.setStretchFactor(0, 4)
         cuerpo.setStretchFactor(1, 1)
         lay.addWidget(cuerpo, 1)
 
