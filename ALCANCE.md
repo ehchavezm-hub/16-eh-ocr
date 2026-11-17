@@ -1,4 +1,4 @@
-# PROMPT DE ALCANCE — eh-ocr (v5)
+# PROMPT DE ALCANCE — eh-ocr (v6)
 
 > Aplicativo independiente. No forma parte de txt2media ni depende de él.
 > Estado: **alcance cerrado** — pendiente de aprobación para iniciar el desarrollo.
@@ -18,7 +18,11 @@ tiene que ser claramente superior al de las apps de OCR gratuitas disponibles.
 - Ejecutable: `eh-ocr.exe`
 - Paquete Python: `eh_ocr`
 - Versión inicial: 0.1.0
-- Distribución: **un solo paquete completo** (todos los motores, modelos e idiomas incluidos)
+- Distribución: **paquete esencial + complemento opcional**
+  - `eh-ocr.zip` (esencial): todo lo impreso — PDF digitales, escaneos, fotos, tablas, facturas
+    y formularios — con máxima calidad, en los 3 idiomas.
+  - `eh-ocr-complemento-manuscritos-formulas.zip`: manuscritos y fórmulas. Se descomprime en
+    `eh-ocr\complementos\` y eh-ocr lo detecta solo al iniciar. Sin internet ni instalación.
 - Actualizaciones: manuales, descargando el ZIP nuevo desde GitHub Releases
 
 ## Objetivo
@@ -42,7 +46,7 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
    - Funciona 100 % sin internet, siempre. No hace ninguna conexión de red: ni telemetría,
      ni descargas de modelos, ni comprobación de actualizaciones.
    - Todo viene incluido: modelos, binarios (Tesseract), diccionarios y runtimes
-     (VC++, ONNX Runtime, OpenVINO). No requiere instalar nada más.
+     (VC++, ONNX Runtime con DirectML). No requiere instalar nada más.
    - Portable: se descomprime y funciona. **Sin permisos de administrador** (apto para laptops
      corporativas administradas), sin modificar el registro, ejecutable desde un USB.
    - Cero configuración: detecta el idioma, el tipo de página, el hardware y el mejor motor.
@@ -54,9 +58,10 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
   32 GB de RAM, gráfica integrada Intel Arc, NPU Intel AI Boost, Windows 11 Pro 25H2 (64 bits),
   equipo corporativo unido a dominio.
 - **Mínimo soportado:** Intel Core i5 de 11.ª generación, 8 GB de RAM, Windows 10/11 de 64 bits.
-- **Aceleración automática:** eh-ocr detecta y usa, por orden de preferencia:
-  gráfica Intel Arc / Iris Xe (OpenVINO GPU) → NPU (OpenVINO NPU) → CPU.
-  Si un acelerador falla, vuelve a CPU sin intervención del usuario.
+- **Aceleración automática:** un solo acelerador, **ONNX Runtime + DirectML** (MIT), que usa
+  cualquier gráfica compatible con Windows (Intel Arc, Iris Xe, NVIDIA, AMD). Si no hay gráfica
+  compatible o falla, vuelve a CPU sin intervención del usuario. No se usa la NPU (se descartó
+  OpenVINO para ahorrar ~150–200 MB).
 - **Un solo modo de calidad: máxima.** No hay perfiles "ligeros"; el hardware solo define cuántas
   páginas se procesan en paralelo.
 
@@ -81,7 +86,8 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
   con nombre, versión y autor en las propiedades del .exe (reduce falsos positivos de antivirus).
   Se distribuye como ZIP: `eh-ocr\eh-ocr.exe`. Si el ZIP supera 2 GB (límite de GitHub), se
   divide en partes.
-- **Motores en formato ONNX, sin PyTorch ni PaddlePaddle** en el paquete final. PyTorch solo se
+- **Motores en formato ONNX ejecutados con ONNX Runtime + DirectML, sin PyTorch, PaddlePaddle
+  ni OpenVINO** en el paquete final. PyTorch solo se
   admite si un motor imprescindible no puede convertirse a ONNX, y debe justificarse.
 - Licencias: PROHIBIDO cualquier componente AGPL, GPL o de uso no comercial, también como
   dependencia transitiva y en los pesos de modelos.
@@ -121,14 +127,18 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 |---|---|---|
 | PDF con texto digital | pdfplumber + pypdfium2 (sin OCR) | — |
 | Estructura: columnas, títulos, orden de lectura | RapidLayout (ONNX) | Reglas geométricas de orden de lectura |
-| Texto impreso escaneado | RapidOCR modelos *server* (ONNX/OpenVINO) | Votación con Tesseract (tessdata_best) |
+| Texto impreso escaneado | RapidOCR modelos *server* (ONNX) | Votación con Tesseract (tessdata_best) |
 | Fotos de celular | Preproceso de perspectiva/iluminación + RapidOCR *server* | Reintento con otro preproceso + votación |
 | Tablas | RapidTable (ONNX) | Reconstrucción por líneas/celdas + votación del texto de cada celda |
 | Facturas, recibos, formularios | RapidLayout + RapidTable + reglas de extracción de campos | Votación |
-| Escritura a mano | TrOCR (ONNX, cuantizado) | Votación con RapidOCR; si persiste, marcar para revisión |
-| Fórmulas matemáticas | Modelo LaTeX-OCR en ONNX (p. ej. RapidLaTeXOCR, licencia a verificar) | Reintento con otro preproceso |
+| Escritura a mano *(complemento)* | TrOCR (ONNX, cuantizado) | Votación con RapidOCR; si persiste, marcar para revisión |
+| Fórmulas matemáticas *(complemento)* | Modelo LaTeX-OCR en ONNX (p. ej. RapidLaTeXOCR, licencia a verificar) | Reintento con otro preproceso |
 | Casos imposibles (mezcla, muy mala calidad) | Votación de todos los motores | Marcar para revisión, indicando las zonas no confiables |
 
+> **Sin complemento:** las regiones detectadas como manuscrito o fórmula se marcan como
+> "no procesadas — requiere el complemento" en la vista previa y en el informe. Nunca se entrega
+> un resultado inventado.
+>
 > Antes de programar se verifica versión, licencia (código y pesos) y precisión real de cada
 > motor. Si docling (con PyTorch) supera claramente a RapidLayout/RapidTable con el corpus del
 > usuario, se reevalúa su inclusión.
@@ -173,8 +183,10 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
   gratuitas existentes. Si no las supera, no se entrega.
 - Se miden CER, WER, precisión de tablas, tiempo por página y RAM máxima.
 
-## Tamaño estimado del paquete
-Estimación por componentes (a confirmar al construir el paquete):
+## Tamaño estimado
+Estimación por componentes (a confirmar al construir los paquetes):
+
+**Paquete esencial (`eh-ocr.zip`)**
 
 | Componente | Descomprimido aprox. |
 |---|---|
@@ -182,18 +194,24 @@ Estimación por componentes (a confirmar al construir el paquete):
 | PySide6 (solo módulos necesarios) | ~100 MB |
 | numpy + OpenCV + Pillow | ~115 MB |
 | Lectores/escritores PDF, DOCX, XLSX | ~45 MB |
-| ONNX Runtime + OpenVINO (CPU, gráfica Arc, NPU) | ~150–250 MB |
+| ONNX Runtime + DirectML | ~50 MB |
 | RapidOCR modelos *server* | ~150–250 MB |
 | Tesseract + castellano, inglés, alemán (best) | ~75 MB |
 | RapidLayout + RapidTable | ~50–150 MB |
+| Diccionarios ortográficos (3 idiomas) | ~15 MB |
+| **Total descomprimido** | **~550–750 MB** |
+| **ZIP a descargar** | **~400–550 MB** |
+
+**Complemento manuscritos y fórmulas**
+
+| Componente | Descomprimido aprox. |
+|---|---|
 | TrOCR manuscritos (ONNX cuantizado) | ~300–350 MB |
 | Fórmulas LaTeX-OCR (ONNX) | ~100 MB |
-| Diccionarios ortográficos (3 idiomas) | ~15 MB |
-| **Total descomprimido** | **~1,0 – 1,4 GB** |
-| **ZIP a descargar** | **~0,8 – 1,1 GB** |
+| **Total descomprimido** | **~450 MB** |
+| **ZIP a descargar** | **~350 MB** |
 
-El componente más pesado es el de manuscritos. Sin PyTorch ni PaddlePaddle se evitan ~1,2 GB
-adicionales.
+Sin PyTorch, PaddlePaddle ni OpenVINO se evitan ~1,4 GB adicionales.
 
 ## Riesgos y requisitos externos
 - **Laptop corporativa:** las políticas de TI pueden bloquear ejecutables no firmados aunque no
@@ -206,12 +224,13 @@ adicionales.
 
 ## Fases y criterios de aceptación
 1. **Núcleo:** análisis + pdfplumber/pypdfium2 + RapidOCR *server* + Tesseract + votación +
-   interfaz + todas las salidas + aceleración OpenVINO. Criterio: escaneos y PDFs del corpus
+   interfaz + todas las salidas + aceleración DirectML. Criterio: escaneos y PDFs del corpus
    cumplen CER < 1 % sin internet en el equipo de referencia.
 2. **Estructura y fotos:** RapidLayout, RapidTable, preproceso de fotos, facturas y formularios.
-3. **Especialistas:** manuscritos (TrOCR) y fórmulas (LaTeX-OCR).
-4. **Inteligencia y pulido:** corrección final, aprendizaje del enrutador, paquete `eh-ocr.zip`
-   en GitHub Releases, prueba en el equipo de referencia y en un equipo mínimo (i5 11.ª gen,
+3. **Complemento:** manuscritos (TrOCR) y fórmulas (LaTeX-OCR) como paquete aparte, con
+   detección automática en `eh-ocr\complementos\`.
+4. **Inteligencia y pulido:** corrección final, aprendizaje del enrutador, `eh-ocr.zip` y el
+   complemento en GitHub Releases, prueba en el equipo de referencia y en un equipo mínimo (i5 11.ª gen,
    8 GB), y comparación final contra apps existentes.
 
 Cada fase incluye tests con pytest. CI en GitHub Actions (runner Windows): tests + verificación
@@ -219,7 +238,7 @@ de licencias + construcción del paquete (solo al publicar versiones).
 
 ## Antes de escribir código
 - Verificar versiones actuales, licencias (código y pesos de modelos), compatibilidad con
-  Python 3.13, ONNX Runtime, OpenVINO (GPU Arc y NPU) y Windows de cada componente.
-- Confirmar el tamaño real del paquete.
+  Python 3.13, ONNX Runtime + DirectML (gráfica Arc) y Windows de cada componente.
+- Confirmar el tamaño real del paquete esencial y del complemento.
 - Proponer la arquitectura de módulos (interfaz común `Motor` con `reconocer(pagina) → Resultado`)
   y esperar aprobación.
