@@ -37,7 +37,7 @@ class MotorRapid(Motor):
         except MotorNoDisponible:
             return False
 
-    def _parametros(self, usar_dml: bool) -> dict:
+    def _parametros(self, usar_dml: bool, usar_medium: bool = True) -> dict:
         p = {
             "Global.log_level": "error",
             "Global.use_cls": False,
@@ -51,12 +51,15 @@ class MotorRapid(Motor):
         carpeta = config.carpeta_modelos() / "rapidocr"
         det = carpeta / "PP-OCRv6_det_medium.onnx"
         rec = carpeta / "PP-OCRv6_rec_medium.onnx"
-        if det.exists() and rec.exists():
+        self.modelos = "small"
+        if usar_medium and det.exists() and rec.exists():
+            from rapidocr.utils.typings import ModelType
+
             p.update(
                 {
-                    "Det.model_type": "medium",
+                    "Det.model_type": ModelType.MEDIUM,
                     "Det.model_path": str(det),
-                    "Rec.model_type": "medium",
+                    "Rec.model_type": ModelType.MEDIUM,
                     "Rec.model_path": str(rec),
                 }
             )
@@ -74,15 +77,19 @@ class MotorRapid(Motor):
             except Exception as e:  # pragma: no cover
                 raise MotorNoDisponible(f"RapidOCR no está incluido: {e}") from e
             usar_dml = hardware.detectar().acelerador == "DirectML"
-            try:
-                self._motor = RapidOCR(params=self._parametros(usar_dml))
-                self.acelerador = "DirectML" if usar_dml else "CPU"
-            except Exception as e:
-                if not usar_dml:
-                    raise MotorNoDisponible(f"RapidOCR no pudo iniciarse: {e}") from e
-                log.warning("DirectML falló (%s); se usa CPU", e)
-                self._motor = RapidOCR(params=self._parametros(False))
-                self.acelerador = "CPU"
+            # Del más rápido y preciso al más seguro: nunca se queda sin motor.
+            intentos = [(usar_dml, True), (False, True), (False, False)] if usar_dml else [(False, True), (False, False)]
+            ultimo_error: Exception | None = None
+            for dml, medium in intentos:
+                try:
+                    self._motor = RapidOCR(params=self._parametros(dml, medium))
+                    self.acelerador = "DirectML" if dml else "CPU"
+                    break
+                except Exception as e:
+                    log.warning("RapidOCR (DirectML=%s, medium=%s) falló: %s", dml, medium, e)
+                    ultimo_error = e
+            if self._motor is None:
+                raise MotorNoDisponible(f"RapidOCR no pudo iniciarse: {ultimo_error}")
             return self._motor
 
     def reconocer(self, imagen: np.ndarray) -> list[Palabra]:

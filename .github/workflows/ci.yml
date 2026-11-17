@@ -67,6 +67,7 @@ jobs:
           $p = Start-Process -FilePath "dist\eh-ocr\eh-ocr.exe" -ArgumentList "--autoprueba","$PWD\autoprueba.txt" -Wait -PassThru
           Get-Content autoprueba.txt
           if ($p.ExitCode -ne 0) { throw "La autoprueba del ejecutable falló" }
+          if (-not (Select-String -Path autoprueba.txt -Pattern "'modelos': 'medium'" -Quiet)) { throw "El paquete no usa los modelos medium" }
       - name: Comprimir
         shell: pwsh
         run: |
