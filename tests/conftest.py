@@ -116,3 +116,57 @@ def foto(tmp_path) -> Path:
     ruta = tmp_path / "foto.jpg"
     cv2.imwrite(str(ruta), cv2.cvtColor(img, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
     return ruta
+
+
+FILAS_TABLA = [
+    ["Partida", "Und.", "Metrado", "Precio"],
+    ["Excavación masiva", "m3", "320.00", "45.50"],
+    ["Concreto f'c 210", "m3", "85.00", "420.00"],
+    ["Acero de refuerzo", "kg", "5,200.00", "4.80"],
+]
+
+
+@pytest.fixture
+def tabla_escaneada(tmp_path) -> Path:
+    """Presupuesto escaneado: tabla con bordes, celda de 2 renglones y celda combinada."""
+    im = Image.new("RGB", (2480, 3508), "white")
+    d = ImageDraw.Draw(im)
+    f = fuente(34)
+    d.text((200, 250), "PRESUPUESTO DE OBRA", font=f, fill="black")
+    d.text((200, 320), "Los metrados se detallan a continuación.", font=f, fill="black")
+    xs = [200, 1300, 1600, 2000, 2300]
+    ys = [450, 550, 650, 820, 920, 1020]
+    for x in xs:
+        d.line([(x, ys[0]), (x, ys[-1])], fill="black", width=4)
+    for y in ys:
+        d.line([(xs[0], y), (xs[-1], y)], fill="black", width=4)
+    for x in (xs[1], xs[2]):  # última fila: columnas 0..2 combinadas
+        d.rectangle([x - 3, ys[4] + 4, x + 3, ys[5] - 4], fill="white")
+    for r, fila in enumerate(FILAS_TABLA):
+        for c, t in enumerate(fila):
+            d.text((xs[c] + 20, ys[r] + 14), t, font=f, fill="black")
+    d.text((xs[0] + 20, ys[3] + 50), "corrugado grado 60", font=f, fill="black")
+    d.text((xs[0] + 20, ys[4] + 14), "TOTAL COSTO DIRECTO", font=f, fill="black")
+    d.text((xs[3] + 20, ys[4] + 14), "75,256.00", font=f, fill="black")
+    d.text((200, 1100), "El plazo de ejecución es de 120 días.", font=f, fill="black")
+    ruta = tmp_path / "presupuesto.png"
+    im.rotate(1.0, fillcolor="white").save(ruta, dpi=(300, 300))
+    return ruta
+
+
+@pytest.fixture
+def pdf_digital_con_tabla(tmp_path) -> Path:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet
+
+    ruta = tmp_path / "presupuesto_digital.pdf"
+    estilos = getSampleStyleSheet()
+    datos = [fila[:] for fila in FILAS_TABLA] + [["TOTAL COSTO DIRECTO", "", "", "75,256.00"]]
+    t = Table(datos)
+    t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 0.8, colors.black), ("SPAN", (0, 4), (2, 4))]))
+    doc = SimpleDocTemplate(str(ruta), pagesize=A4)
+    doc.build([Paragraph("Presupuesto de obra", estilos["Title"]), Spacer(1, 12), t,
+               Spacer(1, 12), Paragraph("El plazo de ejecución es de 120 días.", estilos["Normal"])])
+    return ruta

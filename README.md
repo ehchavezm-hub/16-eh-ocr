@@ -16,7 +16,10 @@ La primera vez Windows puede mostrar "Windows protegió su PC": pulsa **Más inf
 Ejecutar de todas formas**.
 
 Resultados: junto al original, como `nombre_ocr.pdf` (PDF con texto buscable) y
-`nombre_ocr.docx` (Word). También TXT, Markdown y JSON. Nunca se sobrescribe nada.
+`nombre_ocr.docx` (Word). También Excel, TXT, Markdown y JSON. Nunca se sobrescribe nada.
+
+Las **tablas** se detectan (con o sin bordes, también celdas combinadas) y salen como tablas
+reales en Word y Excel.
 
 ## Cómo funciona por dentro
 
@@ -32,16 +35,20 @@ Una página con texto digital nunca pasa por OCR: sale exacta e instantánea.
 
 ## Estado
 
-**Fase 1 (núcleo)** completa: PDF digital, escaneos, fotos, votación, revisión, todas las
-salidas, paquete portable. Próximas fases: tablas y estructura (RapidLayout/RapidTable),
-complemento de manuscritos y fórmulas, aprendizaje del enrutador.
+- **0.1.0 — Fase 1 (núcleo)**: PDF digital, escaneos, fotos, votación, revisión, salidas, paquete portable.
+- **0.2.0 — Tablas**: tablas con y sin bordes, celdas combinadas, salida Excel.
+- Próximas: complemento de manuscritos y fórmulas, aprendizaje del enrutador.
 
 ## Desarrollo
 
 ```bash
 pip install -e ".[dev]"
+pip install --no-deps -r requirements-tablas.txt
 pytest -v
 ```
+
+(Las librerías de tablas se instalan sin dependencias porque pedirían versiones de
+ONNX Runtime y OpenCV que chocan con las que usa eh-ocr.)
 
 - Probar con tus documentos: ver `scripts/evaluar_corpus.py` (carpeta `corpus/`, nunca se sube).
 - Construir el paquete de Windows: se hace automáticamente en GitHub Actions al crear un

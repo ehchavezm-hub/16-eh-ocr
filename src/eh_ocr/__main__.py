@@ -51,6 +51,9 @@ def autoprueba(destino: Path) -> int:
             r = procesar_documento(ruta)
             error = cer("\n".join(texto), r.texto)
             m = Motores.obtener().estado()
+            from .tablas import ModelosTablas
+
+            m.update({f"tablas_{k}": v for k, v in ModelosTablas.obtener().estado.items()})
             ok = error < 0.03 and m["rapidocr"] and m["tesseract"]
             informe = f"{'OK' if ok else 'FALLO'} cer={error:.4f} motores={m}\n{r.texto}\n"
         except Exception as e:  # noqa: BLE001

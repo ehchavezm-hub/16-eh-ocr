@@ -26,8 +26,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install --no-deps -r requirements-tablas.txt
       - name: Licencias (sin GPL/AGPL)
         run: python scripts/verificar_licencias.py
+      - name: Modelos (para probar también tablas sin bordes)
+        run: python scripts/preparar_build.py --solo-modelos
       - name: Pruebas
         env:
           QT_QPA_PLATFORM: offscreen
@@ -51,6 +54,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install --no-deps -r requirements-tablas.txt
       - name: Licencias (sin GPL/AGPL)
         run: python scripts/verificar_licencias.py
       - name: Recursos del paquete (modelos medium + Tesseract + idiomas)
@@ -70,6 +74,8 @@ jobs:
           if (Test-Path autoprueba.txt) { Get-Content autoprueba.txt } else { throw "La autoprueba no escribió resultados" }
           if ($p.ExitCode -ne 0) { throw "La autoprueba del ejecutable falló" }
           if (-not (Select-String -Path autoprueba.txt -Pattern "'modelos': 'medium'" -Quiet)) { throw "El paquete no usa los modelos medium" }
+          if (-not (Select-String -Path autoprueba.txt -Pattern "'tablas_estructura': True" -Quiet)) { throw "El paquete no incluye el modelo de tablas" }
+          if (-not (Select-String -Path autoprueba.txt -Pattern "'tablas_layout': True" -Quiet)) { throw "El paquete no incluye el detector de tablas" }
       - name: Comprimir
         shell: pwsh
         run: |

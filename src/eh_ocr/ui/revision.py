@@ -235,6 +235,10 @@ class PaginaRevision(QWidget):
             color = QColor(self.paleta.dudosa_borde)
             relleno = QColor(self.paleta.dudosa)
             relleno.setAlpha(110)
+            azul = QColor(self.paleta.acento)
+            for t in r.tablas:
+                x0, y0, x1, y1 = t.caja
+                escena.addRect(QRectF(x0 * sx, y0 * sy, (x1 - x0) * sx, (y1 - y0) * sy), QPen(azul, 2, Qt.PenStyle.DashLine))
             for p in r.palabras:
                 if not p.dudosa:
                     continue
@@ -284,7 +288,7 @@ class PaginaRevision(QWidget):
         self.lbl_estado.setText(
             f"Página {r.perfil.numero}: {r.perfil.tipo.value} · Motores: {' + '.join(r.motores) or '—'}"
             f"{' (votación)' if len(r.motores) > 1 else ''} · Confianza media: {r.confianza_media * 100:.1f} % · "
-            f"Idioma: {r.idioma or '—'} · Tiempo: {r.segundos:.1f} s"
+            f"Tablas: {len(r.tablas)} · Idioma: {r.idioma or '—'} · Tiempo: {r.segundos:.1f} s"
         )
 
     # --- corrección ----------------------------------------------------------

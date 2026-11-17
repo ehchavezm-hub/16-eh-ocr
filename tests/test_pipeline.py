@@ -105,3 +105,29 @@ def test_heic_no_admitido(tmp_path):
     ruta.write_bytes(b"x")
     with pytest.raises(FormatoNoAdmitido, match="JPG"):
         Documento(ruta)
+
+
+def test_salida_excel_columnas(tmp_path):
+    """Una tabla simple se reparte en columnas y los números quedan como números."""
+    from openpyxl import load_workbook
+
+    from eh_ocr.modelo import (EstadoPagina, Linea, Palabra, PerfilPagina, ResultadoDocumento,
+                               ResultadoPagina, TipoPagina)
+
+    def fila(y, *celdas):
+        return Linea([Palabra(t, 0.99, (x, y, x + 40 * len(t), y + 40)) for x, t in celdas])
+
+    lineas = [
+        fila(100, (100, "Partida"), (1200, "Und."), (1800, "Cantidad")),
+        fila(200, (100, "Excavación"), (1200, "m3"), (1800, "320")),
+        fila(300, (100, "Concreto"), (1200, "m3"), (1800, "1.250,50")),
+    ]
+    lineas[2].palabras[0].dudosa = True
+    perfil = PerfilPagina(1, TipoPagina.ESCANEO, 2480, 3508, 300, 595, 842)
+    r = ResultadoDocumento(str(tmp_path / "metrado.pdf"),
+                           [ResultadoPagina(perfil, lineas, EstadoPagina.DUDOSA, ["RapidOCR"], 0.99, 1.0)])
+    destino = salidas.generar(r, ("xlsx",), tmp_path)[0]
+    hoja = load_workbook(destino)["Página 1"]
+    assert [c.value for c in hoja[1]] == ["Partida", "Und.", "Cantidad"]
+    assert hoja["C2"].value == 320 and hoja["C3"].value == 1250.5
+    assert hoja["A3"].fill.fgColor.rgb.endswith("FDE68A")

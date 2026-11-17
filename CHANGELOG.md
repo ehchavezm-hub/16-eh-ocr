@@ -1,5 +1,19 @@
 # Cambios
 
+## 0.2.0 — Tablas y Excel
+
+- Detección de tablas por capas:
+  - PDF digital: tablas del propio PDF (pdfplumber), exactas.
+  - Escaneos y fotos con bordes: cuadrícula por líneas (OpenCV), con celdas combinadas.
+  - Tablas sin bordes: zona detectada por RapidLayout y estructura por RapidTable (SLANet+);
+    respaldo por alineación del texto.
+- Celdas de varios renglones unidas en su celda, en orden de lectura.
+- Word: tablas reales con celdas combinadas. Excel (nuevo): una hoja por página, tablas con
+  bordes y celdas combinadas, números como números. Markdown y TXT con tablas.
+- Las correcciones hechas en la revisión aparecen también dentro de las tablas.
+- Revisión: las tablas se marcan con un recuadro azul; el informe muestra cuántas hay.
+- Aumento del paquete: pocos MB (modelo de zonas incluido en la librería + SLANet+).
+
 ## 0.1.0 — Fase 1 (núcleo)
 
 - Análisis por página: texto digital, escaneo o foto (EXIF o iluminación despareja).

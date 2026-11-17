@@ -25,6 +25,7 @@ de uso no comercial.** La verificación es automática en cada construcción
 | pikepdf (qpdf) | PDF con texto buscable | MPL 2.0 (qpdf: Apache 2.0) |
 | reportlab | Capa de texto invisible del PDF | BSD |
 | python-docx | Salida Word | MIT |
+| openpyxl | Salida Excel | MIT |
 | OpenCV (headless) | Preproceso de imágenes | Apache 2.0 |
 | Pillow | Imágenes | MIT-CMU |
 | NumPy | Cálculo | BSD-3 |

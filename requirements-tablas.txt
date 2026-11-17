@@ -1,0 +1,6 @@
+# Librerías de tablas (Apache 2.0). Se instalan SIN dependencias:
+#   pip install --no-deps -r requirements-tablas.txt
+# porque piden onnxruntime y opencv-python, que chocarían con onnxruntime-directml y
+# opencv-python-headless que eh-ocr ya usa. Sus demás dependencias ya vienen con rapidocr.
+rapid-table==3.0.2
+rapid-layout==1.2.1

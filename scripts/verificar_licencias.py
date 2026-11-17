@@ -35,7 +35,7 @@ def dependencias(raiz: str = "eh-ocr") -> list:
     from packaging.requirements import Requirement
 
     vistos: dict[str, object] = {}
-    pila = [raiz]
+    pila = [raiz, "rapid-table", "rapid-layout"]  # instaladas aparte (requirements-tablas.txt)
     while pila:
         nombre = pila.pop().lower().replace("_", "-")
         if nombre in vistos:

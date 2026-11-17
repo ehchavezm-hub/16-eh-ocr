@@ -4,6 +4,7 @@ eh-ocr nunca se conecta a internet; esto se ejecuta una sola vez, en la
 máquina que construye el paquete, y deja todo en recursos/:
 
   recursos/modelos/rapidocr/PP-OCRv6_{det,rec}_medium.onnx   (verificados por SHA256)
+  recursos/modelos/tablas/slanet-plus.onnx                    (estructura de tablas, SHA256)
   recursos/tesseract/tesseract.exe + DLL                      (copiados de la instalación)
   recursos/tesseract/tessdata/{spa,eng,deu}.traineddata       (tessdata_best)
   recursos/tesseract/tessdata/osd.traineddata                 (detección de orientación)
@@ -65,6 +66,16 @@ def modelos_rapidocr() -> None:
         descargar(url, destino / Path(url).name, info.get("SHA256"))
 
 
+def modelo_tablas() -> None:
+    """SLANet+ (RapidTable): filas, columnas y celdas combinadas de tablas sin bordes."""
+    import rapid_table
+    import yaml
+
+    catalogo = yaml.safe_load((Path(rapid_table.__file__).parent / "default_models.yaml").read_text(encoding="utf-8"))
+    info = catalogo["slanet_plus"]
+    descargar(info["model_dir_or_path"], RECURSOS / "modelos" / "tablas" / "slanet-plus.onnx", info.get("SHA256"))
+
+
 def tesseract(origen: Path | None) -> None:
     destino = RECURSOS / "tesseract"
     tessdata = destino / "tessdata"
@@ -84,9 +95,16 @@ def tesseract(origen: Path | None) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tesseract", type=Path, default=None, help="carpeta de una instalación de Tesseract (Windows)")
+    ap.add_argument("--solo-modelos", action="store_true", help="solo modelos ONNX (pruebas en Linux)")
     args = ap.parse_args()
+    if args.solo_modelos:
+        modelos_rapidocr()
+        modelo_tablas()
+        return
     print("Modelos RapidOCR (medium):")
     modelos_rapidocr()
+    print("Tablas (SLANet+):")
+    modelo_tablas()
     print("Tesseract:")
     tesseract(args.tesseract)
     print("Listo.")

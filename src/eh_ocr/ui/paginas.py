@@ -383,13 +383,13 @@ class PaginaInformes(QWidget):
                 f"No procesadas: {', '.join(map(str, r.paginas_no_procesadas)) or 'ninguna'}</p>"
             )
             html.append("<table cellpadding='4'><tr><th align='left'>Pág.</th><th align='left'>Tipo</th>"
-                        "<th align='left'>Motores</th><th align='left'>Confianza</th><th align='left'>Dudosas</th>"
+                        "<th align='left'>Motores</th><th align='left'>Confianza</th><th align='left'>Tablas</th><th align='left'>Dudosas</th>"
                         "<th align='left'>Tiempo</th></tr>")
             for p in r.paginas:
                 estado = "no procesada: " + p.mensaje if p.estado == EstadoPagina.NO_PROCESADA else ""
                 html.append(
                     f"<tr><td>{p.perfil.numero}</td><td>{p.perfil.tipo.value}</td>"
-                    f"<td>{' + '.join(p.motores) or '—'}</td><td>{p.confianza_media * 100:.1f} %</td>"
+                    f"<td>{' + '.join(p.motores) or '—'}</td><td>{p.confianza_media * 100:.1f} %</td><td>{len(p.tablas)}</td>"
                     f"<td>{len(p.dudosas)} {estado}</td><td>{p.segundos:.1f} s</td></tr>"
                 )
             html.append("</table>")

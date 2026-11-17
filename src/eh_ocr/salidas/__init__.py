@@ -6,11 +6,12 @@ from pathlib import Path
 
 from ..archivos import carpeta_salida, ruta_unica
 from ..modelo import ResultadoDocumento
-from . import docx_salida, json_salida, pdf_buscable, texto
+from . import docx_salida, json_salida, pdf_buscable, texto, xlsx_salida
 
 FORMATOS = {
     "pdf": ("PDF buscable", ".pdf"),
     "docx": ("Word (DOCX)", ".docx"),
+    "xlsx": ("Excel (XLSX)", ".xlsx"),
     "txt": ("Texto (TXT)", ".txt"),
     "md": ("Markdown", ".md"),
     "json": ("JSON", ".json"),
@@ -38,6 +39,8 @@ def generar(
             texto.escribir_md(resultado, destino)
         elif f == "json":
             json_salida.escribir(resultado, destino)
+        elif f == "xlsx":
+            xlsx_salida.escribir(resultado, destino)
         elif f == "docx":
             docx_salida.escribir(resultado, destino)
         elif f == "pdf":

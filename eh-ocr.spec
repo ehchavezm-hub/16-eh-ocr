@@ -13,8 +13,14 @@ datas += collect_data_files("rapidocr")          # config, catálogo y modelos s
 datas += collect_data_files("spellchecker")      # diccionarios es/en/de
 datas += collect_data_files("pdfplumber")
 datas += collect_data_files("docx")              # plantilla de Word
+datas += collect_data_files("rapid_layout")      # detector de zonas (incluye el modelo de tablas)
+datas += collect_data_files("rapid_table")       # configuración de estructura de tablas
+datas += collect_data_files("openpyxl")
 
 hiddenimports = collect_submodules("rapidocr.inference_engine.onnxruntime")
+_sin_torch = lambda nombre: "unitable" not in nombre and "torch" not in nombre  # noqa: E731
+hiddenimports += collect_submodules("rapid_table", filter=_sin_torch)
+hiddenimports += collect_submodules("rapid_layout", filter=_sin_torch)
 
 a = Analysis(
     [str(RAIZ / "src" / "lanzador.py")],
@@ -22,7 +28,7 @@ a = Analysis(
     datas=datas,
     hiddenimports=hiddenimports,
     excludes=[
-        "tkinter", "matplotlib", "IPython", "pytest", "pandas", "torch", "paddle", "openvino", "tensorrt",
+        "tkinter", "matplotlib", "IPython", "pytest", "pandas", "torch", "torchvision", "tokenizers", "paddle", "openvino", "tensorrt",
         "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtQml", "PySide6.QtQuick",
         "PySide6.Qt3DCore", "PySide6.QtMultimedia", "PySide6.QtCharts", "PySide6.QtDataVisualization",
         "PySide6.QtPdf", "PySide6.QtSql", "PySide6.QtTest", "PySide6.QtDesigner",

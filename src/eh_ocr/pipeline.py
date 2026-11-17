@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import config, hardware, preproceso
+from . import config, hardware, preproceso, tablas
 from .archivos import escribir_atomico
 from .corrector import corregir_palabra, diccionarios
 from .documento import Documento, Pagina
@@ -42,7 +42,7 @@ from .votacion import agrupar_en_lineas, marcar_dudosas, votar
 
 log = logging.getLogger(__name__)
 
-VERSION_CACHE = 1
+VERSION_CACHE = 2  # 2: tablas
 
 
 class Cancelado(Exception):
@@ -239,6 +239,11 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
         escala = config.DPI_RENDER / 72
         palabras = lector_digital.palabras(pagina.indice, escala)
         lineas = agrupar_en_lineas(palabras)
+        try:
+            tablas_pag = tablas.finalizar(lector_digital.tablas(pagina.indice, escala), [p for l in lineas for p in l.palabras])
+        except Exception:
+            log.exception("Tablas del PDF digital: se continúa sin ellas")
+            tablas_pag = []
         return ResultadoPagina(
             perfil=perfil,
             lineas=lineas,
@@ -247,6 +252,7 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
             confianza_media=1.0,
             segundos=round(time.perf_counter() - inicio, 2),
             idioma=diccionarios().detectar_idioma([p.texto for p in palabras]),
+            tablas=tablas_pag,
         )
 
     base = preparar_imagen(pagina, perfil, motores)
@@ -268,6 +274,7 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
     marcar_dudosas(mejor_lineas)
     estado = EstadoPagina.DUDOSA if any(p.dudosa for l in mejor_lineas for p in l.palabras) else EstadoPagina.OK
     palabras = [p.texto for l in mejor_lineas for p in l.palabras]
+    tablas_pag = _tablas_en_imagen(base, mejor_lineas)
     return ResultadoPagina(
         perfil=perfil,
         lineas=mejor_lineas,
@@ -277,7 +284,34 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
         segundos=round(time.perf_counter() - inicio, 2),
         idioma=dic.detectar_idioma(palabras),
         mensaje="; ".join(base.pasos),
+        tablas=tablas_pag,
     )
+
+
+def _tablas_en_imagen(base: preproceso.ImagenTrabajo, lineas: list[Linea]) -> list:
+    """Detecta tablas en la imagen enderezada y devuelve sus cajas a la página original."""
+    import cv2
+    import numpy as np
+
+    from .modelo import Palabra
+
+    try:
+        originales = [p for l in lineas for p in l.palabras]
+        trabajo = []
+        for p in originales:
+            x0, y0, x1, y1 = p.caja
+            pts = np.array([[[x0, y0]], [[x1, y0]], [[x1, y1]], [[x0, y1]]], dtype=np.float64)
+            q = cv2.perspectiveTransform(pts, base.H).reshape(-1, 2)
+            trabajo.append(Palabra(p.texto, p.confianza, (q[:, 0].min(), q[:, 1].min(), q[:, 0].max(), q[:, 1].max())))
+        encontradas = tablas.finalizar(tablas.detectar_en_imagen(base.imagen, trabajo), trabajo)
+        for t in encontradas:
+            t.caja = base.a_original(t.caja)
+            for c in t.celdas:
+                c.caja = base.a_original(c.caja)
+        return encontradas
+    except Exception:
+        log.exception("Detección de tablas: se continúa sin ellas")
+        return []
 
 
 def _pagina_no_procesada(pagina: Pagina, mensaje: str, segundos: float) -> ResultadoPagina:

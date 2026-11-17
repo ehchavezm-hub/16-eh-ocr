@@ -1,7 +1,7 @@
 # PROMPT DE ALCANCE — eh-ocr (v6)
 
 > Aplicativo independiente. No forma parte de txt2media ni depende de él.
-> Estado: **Fase 1 (núcleo) desarrollada** — ver README.md. Siguientes: fases 2–4.
+> Estado: **Fase 1 (núcleo) y tablas de la Fase 2 desarrolladas (v0.2.0)** — ver README.md y CHANGELOG.md.
 
 ## Rol
 Actúa como arquitecto y desarrollador senior de sistemas de reconocimiento de documentos.

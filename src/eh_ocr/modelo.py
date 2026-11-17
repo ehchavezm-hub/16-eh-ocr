@@ -84,10 +84,35 @@ class ResultadoPagina:
     segundos: float
     idioma: str = ""
     mensaje: str = ""
+    tablas: list = field(default_factory=list)  # list[tablas.Tabla]
 
     @property
     def texto(self) -> str:
         return "\n".join(l.texto for l in self.lineas)
+
+    def bloques(self) -> list[tuple[str, object]]:
+        """Contenido en orden de lectura: ("linea", Linea) o ("tabla", Tabla).
+
+        Las líneas cuyas palabras pertenecen a una tabla no se repiten como texto suelto.
+        """
+        if not self.tablas:
+            return [("linea", l) for l in self.lineas]
+        en_tabla = {i for t in self.tablas for c in t.celdas for i in c.indices}
+        salida: list[tuple[float, str, object]] = []
+        k = 0
+        for l in self.lineas:
+            libres = []
+            for p in l.palabras:
+                if k not in en_tabla:
+                    libres.append(p)
+                k += 1
+            if libres:
+                linea = Linea(libres)
+                salida.append((linea.caja[1], "linea", linea))
+        for t in self.tablas:
+            salida.append((t.caja[1], "tabla", t))
+        salida.sort(key=lambda x: x[0])
+        return [(tipo, obj) for _, tipo, obj in salida]
 
     @property
     def palabras(self) -> list[Palabra]:
@@ -120,7 +145,16 @@ class ResultadoPagina:
             segundos=d["segundos"],
             idioma=d.get("idioma", ""),
             mensaje=d.get("mensaje", ""),
+            tablas=_tablas_de_dict(d.get("tablas", [])),
         )
+
+
+def _tablas_de_dict(datos: list) -> list:
+    if not datos:
+        return []
+    from .tablas import Tabla
+
+    return [Tabla.de_dict(t) for t in datos]
 
 
 @dataclass
