@@ -4,7 +4,8 @@ eh-ocr nunca se conecta a internet; esto se ejecuta una sola vez, en la
 máquina que construye el paquete, y deja todo en recursos/:
 
   recursos/modelos/rapidocr/PP-OCRv6_{det,rec}_medium.onnx   (verificados por SHA256)
-  recursos/modelos/tablas/slanet-plus.onnx                    (estructura de tablas, SHA256)
+  recursos/modelos/tablas/slanet-plus.onnx, slanet-en.onnx    (estructura de tablas, SHA256)
+  recursos/modelos/tablas/pp_doc_layoutv3.onnx                (zonas de página: tablas, SHA256)
   recursos/tesseract/tesseract.exe + DLL                      (copiados de la instalación)
   recursos/tesseract/tessdata/{spa,eng,deu}.traineddata       (tessdata_best)
   recursos/tesseract/tessdata/osd.traineddata                 (detección de orientación)
@@ -67,13 +68,22 @@ def modelos_rapidocr() -> None:
 
 
 def modelo_tablas() -> None:
-    """SLANet+ (RapidTable): filas, columnas y celdas combinadas de tablas sin bordes."""
+    """Tablas de alta precisión: dos modelos de estructura (RapidTable) y el detector de zonas
+    PP-DocLayout v3 (RapidLayout). URL y SHA256 de los catálogos oficiales de cada librería."""
+    import rapid_layout
     import rapid_table
     import yaml
 
-    catalogo = yaml.safe_load((Path(rapid_table.__file__).parent / "default_models.yaml").read_text(encoding="utf-8"))
-    info = catalogo["slanet_plus"]
-    descargar(info["model_dir_or_path"], RECURSOS / "modelos" / "tablas" / "slanet-plus.onnx", info.get("SHA256"))
+    destino = RECURSOS / "modelos" / "tablas"
+    cat_tabla = yaml.safe_load((Path(rapid_table.__file__).parent / "default_models.yaml").read_text(encoding="utf-8"))
+    for clave, archivo in (("slanet_plus", "slanet-plus.onnx"), ("ppstructure_en", "slanet-en.onnx")):
+        info = cat_tabla[clave]
+        descargar(info["model_dir_or_path"], destino / archivo, info.get("SHA256"))
+    cat_layout = yaml.safe_load(
+        (Path(rapid_layout.__file__).parent / "configs" / "default_models.yaml").read_text(encoding="utf-8")
+    )
+    info = cat_layout["pp_doc_layoutv3"]
+    descargar(info["model_dir_or_path"], destino / "pp_doc_layoutv3.onnx", info.get("SHA256"))
 
 
 def tesseract(origen: Path | None) -> None:
@@ -103,7 +113,7 @@ def main() -> None:
         return
     print("Modelos RapidOCR (medium):")
     modelos_rapidocr()
-    print("Tablas (SLANet+):")
+    print("Tablas (alta precisión):")
     modelo_tablas()
     print("Tesseract:")
     tesseract(args.tesseract)

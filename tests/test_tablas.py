@@ -174,3 +174,34 @@ def test_se_elige_la_estructura_que_no_junta_columnas():
         Celda(r, c, 1, 1, (c * 700 + 50, 60 + r * 80, c * 700 + 750, 140 + r * 80)) for r in range(3) for c in range(3)],
         "alineacion")
     assert _mejor_candidato([juntadas, separadas], palabras) is separadas
+
+
+def test_tabla_sin_lineas_en_pdf_digital(tmp_path):
+    """pdfplumber no ve tablas sin líneas: las encuentra el detector de zonas, con el texto exacto del PDF.
+
+    Requiere el detector preciso (PP-DocLayout v3, incluido en el paquete): el liviano de respaldo
+    confunde esta tabla con una figura.
+    """
+    from eh_ocr.tablas import ModelosTablas
+
+    if not ModelosTablas.obtener().estado["layout_preciso"]:
+        pytest.skip("Detector de zonas preciso no presente (se prueba en CI y en el paquete)")
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table
+
+    ruta = tmp_path / "cronograma_digital.pdf"
+    datos = [["Mes", "Avance", "Monto"], ["Enero", "12 %", "45,000.00"], ["Febrero", "25 %", "93,750.00"],
+             ["Marzo", "40 %", "150,000.00"], ["Abril", "60 %", "225,000.00"]]
+    t = Table(datos, colWidths=[150, 150, 150])
+    estilos = getSampleStyleSheet()
+    SimpleDocTemplate(str(ruta), pagesize=A4).build([
+        Paragraph("Cronograma de valorizaciones del proyecto", estilos["Title"]), Spacer(1, 12), t, Spacer(1, 12),
+        Paragraph("Las valorizaciones se presentan el último día hábil de cada mes.", estilos["Normal"])])
+    p = procesar_documento(ruta).paginas[0]
+    assert p.motores == ["PDF digital"]
+    assert len(p.tablas) == 1
+    tabla = p.tablas[0]
+    assert tabla.n_cols == 3 and tabla.n_filas == 5
+    textos = {texto_celda(c, p.palabras) for c in tabla.celdas}
+    assert {"Mes", "Febrero", "93,750.00", "60 %"} <= textos

@@ -257,7 +257,14 @@ def tabla_por_alineacion(region: Caja, palabras: list[Palabra]) -> Tabla | None:
 # --- modelos (RapidLayout + RapidTable) -------------------------------------------------
 
 class ModelosTablas:
-    """Carga perezosa de los modelos; si faltan, eh-ocr sigue con bordes y alineación."""
+    """Carga perezosa de los modelos; si faltan, eh-ocr sigue con bordes y alineación.
+
+    Alta precisión (incluida en el paquete):
+      - Zonas: PP-DocLayout v3 (respaldo: modelo general incluido en rapid_layout).
+      - Estructura: SLANet+ y SLANet en inglés; se comparan entre sí y con la alineación.
+    """
+
+    ESTRUCTURAS = (("slanet-plus.onnx", "SLANETPLUS"), ("slanet-en.onnx", "PPSTRUCTURE_EN"))
 
     _instancia: "ModelosTablas | None" = None
     _lock_clase = threading.Lock()
@@ -265,7 +272,8 @@ class ModelosTablas:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._layout = None
-        self._tabla = None
+        self.layout_preciso = False
+        self._tablas: list = []
         self._cargado = False
 
     @classmethod
@@ -284,27 +292,44 @@ class ModelosTablas:
             from rapid_layout import ModelType as TipoLayout
             from rapid_layout import RapidLayout, RapidLayoutInput
 
-            # Modelo de diseño de página incluido en la librería (detecta "table", entre otras zonas)
-            self._layout = RapidLayout(cfg=RapidLayoutInput(model_type=TipoLayout.PP_LAYOUT_CDLA, conf_thresh=0.5))
+            preciso = carpeta / "pp_doc_layoutv3.onnx"
+            if preciso.exists():
+                try:
+                    self._layout = RapidLayout(cfg=RapidLayoutInput(
+                        model_type=TipoLayout.PP_DOC_LAYOUTV3, model_dir_or_path=str(preciso), conf_thresh=0.5))
+                    self.layout_preciso = True
+                except Exception as e:
+                    log.warning("PP-DocLayout no pudo iniciarse (%s); se usa el modelo general", e)
+            if self._layout is None:
+                self._layout = RapidLayout(cfg=RapidLayoutInput(model_type=TipoLayout.PP_LAYOUT_CDLA, conf_thresh=0.5))
         except Exception as e:
             log.warning("Detector de tablas (RapidLayout) no disponible: %s", e)
         try:
-            ruta = carpeta / "slanet-plus.onnx"
-            if ruta.exists():
-                from rapid_table import ModelType as TipoTabla
-                from rapid_table import RapidTable, RapidTableInput
-
-                self._tabla = RapidTable(
-                    RapidTableInput(model_type=TipoTabla.SLANETPLUS, model_dir_or_path=str(ruta), use_ocr=False)
-                )
+            from rapid_table import ModelType as TipoTabla
+            from rapid_table import RapidTable, RapidTableInput
         except Exception as e:
             log.warning("Estructura de tablas (RapidTable) no disponible: %s", e)
+            return
+        for archivo, tipo in self.ESTRUCTURAS:
+            ruta = carpeta / archivo
+            if not ruta.exists():
+                continue
+            try:
+                self._tablas.append(RapidTable(RapidTableInput(
+                    model_type=getattr(TipoTabla, tipo), model_dir_or_path=str(ruta), use_ocr=False)))
+            except Exception as e:
+                log.warning("Modelo de tablas %s no pudo iniciarse: %s", archivo, e)
 
     @property
     def estado(self) -> dict:
         with self._lock:
             self._cargar()
-        return {"layout": self._layout is not None, "estructura": self._tabla is not None}
+        return {
+            "layout": self._layout is not None,
+            "layout_preciso": self.layout_preciso,
+            "estructura": bool(self._tablas),
+            "estructuras": len(self._tablas),
+        }
 
     def regiones(self, imagen: np.ndarray) -> list[Caja]:
         with self._lock:
@@ -322,36 +347,51 @@ class ModelosTablas:
                 salida.append(tuple(float(v) for v in caja[:4]))
         return salida
 
-    def estructura(self, imagen: np.ndarray, region: Caja) -> Tabla | None:
+    def estructuras(self, imagen: np.ndarray, region: Caja) -> list[Tabla]:
+        """Una estructura candidata por cada modelo disponible."""
+        x0, y0, x1, y1 = (int(v) for v in region)
+        recorte = imagen[max(0, y0) : y1, max(0, x0) : x1]
+        if recorte.size == 0:
+            return []
+        candidatos = []
         with self._lock:
             self._cargar()
-            if self._tabla is None:
-                return None
-            x0, y0, x1, y1 = (int(v) for v in region)
-            recorte = imagen[max(0, y0) : y1, max(0, x0) : x1]
-            if recorte.size == 0:
-                return None
-            try:
-                r = self._tabla(recorte)
-            except Exception as e:
-                log.warning("RapidTable falló: %s", e)
-                return None
-        if not r.cell_bboxes or not r.logic_points:
-            return None
-        cajas, logicos = np.asarray(r.cell_bboxes[0]), np.asarray(r.logic_points[0])
-        celdas = []
-        for caja, lp in zip(cajas, logicos):
-            caja = np.asarray(caja, dtype=float).reshape(-1, 2)
-            f0, f1, c0, c1 = (int(v) for v in lp[:4])
-            celdas.append(
-                Celda(f0, c0, f1 - f0 + 1, c1 - c0 + 1,
-                      (caja[:, 0].min() + x0, caja[:, 1].min() + y0, caja[:, 0].max() + x0, caja[:, 1].max() + y0))
-            )
-        if not celdas:
-            return None
-        n_f = max(c.fila + c.filas for c in celdas)
-        n_c = max(c.col + c.cols for c in celdas)
-        return Tabla(tuple(float(v) for v in region), n_f, n_c, celdas, "modelo")
+            modelos = list(self._tablas)
+        for modelo in modelos:
+            with self._lock:
+                try:
+                    r = modelo(recorte)
+                except Exception as e:
+                    log.warning("RapidTable falló: %s", e)
+                    continue
+            t = _tabla_desde_modelo(r, region, x0, y0)
+            if t is not None:
+                candidatos.append(t)
+        return candidatos
+
+    def estructura(self, imagen: np.ndarray, region: Caja) -> Tabla | None:
+        """Compatibilidad: la primera estructura disponible."""
+        cands = self.estructuras(imagen, region)
+        return cands[0] if cands else None
+
+
+def _tabla_desde_modelo(r, region: Caja, x0: int, y0: int) -> Tabla | None:
+    if not r.cell_bboxes or not r.logic_points:
+        return None
+    cajas, logicos = np.asarray(r.cell_bboxes[0]), np.asarray(r.logic_points[0])
+    celdas = []
+    for caja, lp in zip(cajas, logicos):
+        caja = np.asarray(caja, dtype=float).reshape(-1, 2)
+        f0, f1, c0, c1 = (int(v) for v in lp[:4])
+        celdas.append(
+            Celda(f0, c0, f1 - f0 + 1, c1 - c0 + 1,
+                  (caja[:, 0].min() + x0, caja[:, 1].min() + y0, caja[:, 0].max() + x0, caja[:, 1].max() + y0))
+        )
+    if not celdas:
+        return None
+    n_f = max(c.fila + c.filas for c in celdas)
+    n_c = max(c.col + c.cols for c in celdas)
+    return Tabla(tuple(float(v) for v in region), n_f, n_c, celdas, "modelo")
 
 
 # --- API principal -------------------------------------------------------------------------
@@ -364,7 +404,7 @@ def detectar_en_imagen(imagen: np.ndarray, palabras_trabajo: list[Palabra]) -> l
         if any(_iou(region, t.caja) > 0.3 for t in tablas):
             continue  # ya detectada por sus bordes (más exacto)
         candidatos = [
-            c for c in (modelos.estructura(imagen, region), tabla_por_alineacion(region, palabras_trabajo))
+            c for c in [*modelos.estructuras(imagen, region), tabla_por_alineacion(region, palabras_trabajo)]
             if c is not None and c.n_cols >= 2 and c.n_filas >= 2 and len(c.celdas) >= 4
         ]
         t = _mejor_candidato(candidatos, palabras_trabajo)
@@ -438,6 +478,24 @@ def _mejor_candidato(candidatos: list[Tabla], palabras: list[Palabra]) -> Tabla 
         if mejor_puntaje is None or puntaje < mejor_puntaje:
             mejor, mejor_puntaje = cand, puntaje
     return mejor
+
+
+def detectar_sin_bordes_digital(imagen: np.ndarray, palabras: list[Palabra], ya: list[Tabla]) -> list[Tabla]:
+    """PDF digital: tablas SIN líneas (pdfplumber no las ve). Zonas por el detector,
+    texto exacto del PDF. Se omiten las zonas ya cubiertas por tablas con líneas."""
+    modelos = ModelosTablas.obtener()
+    salida = []
+    for region in modelos.regiones(imagen):
+        if any(_iou(region, t.caja) > 0.3 for t in ya):
+            continue
+        candidatos = [
+            c for c in [*modelos.estructuras(imagen, region), tabla_por_alineacion(region, palabras)]
+            if c is not None and c.n_cols >= 2 and c.n_filas >= 2 and len(c.celdas) >= 4
+        ]
+        t = _mejor_candidato(candidatos, palabras)
+        if t is not None:
+            salida.append(t)
+    return salida
 
 
 def finalizar(tablas: list[Tabla], palabras: list[Palabra]) -> list[Tabla]:

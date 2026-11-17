@@ -12,7 +12,14 @@
   bordes y celdas combinadas, números como números. Markdown y TXT con tablas.
 - Las correcciones hechas en la revisión aparecen también dentro de las tablas.
 - Revisión: las tablas se marcan con un recuadro azul; el informe muestra cuántas hay.
-- Aumento del paquete: pocos MB (modelo de zonas incluido en la librería + SLANet+).
+- Tablas de alta precisión: detector de zonas PP-DocLayout v3 y dos modelos de estructura
+  (SLANet+ y SLANet en inglés). Cada tabla se arma con todos los métodos disponibles y se elige
+  la que no junta columnas.
+- PDF digital: también se detectan tablas SIN líneas (antes solo las que tenían líneas).
+- Lista con casillas: nada se procesa hasta pulsar «Procesar seleccionados»; sin duplicados.
+- «Abrir carpeta de resultados» corregido en Windows.
+- Excel: corregido «'value' is read-only» (celdas superpuestas). Si un formato falla, los
+  demás se guardan igual.
 
 ## 0.1.0 — Fase 1 (núcleo)
 

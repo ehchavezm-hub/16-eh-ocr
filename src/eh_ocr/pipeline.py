@@ -240,7 +240,13 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
         palabras = lector_digital.palabras(pagina.indice, escala)
         lineas = agrupar_en_lineas(palabras)
         try:
-            tablas_pag = tablas.finalizar(lector_digital.tablas(pagina.indice, escala), [p for l in lineas for p in l.palabras])
+            todas = [p for l in lineas for p in l.palabras]
+            con_lineas = lector_digital.tablas(pagina.indice, escala)
+            sin_lineas = []
+            if len(todas) >= 8:  # tablas sin líneas: hace falta mirar la página como imagen
+                imagen, _ = pagina.imagen(config.DPI_RENDER)
+                sin_lineas = tablas.detectar_sin_bordes_digital(imagen, todas, con_lineas)
+            tablas_pag = tablas.finalizar(con_lineas + sin_lineas, todas)
         except Exception:
             log.exception("Tablas del PDF digital: se continúa sin ellas")
             tablas_pag = []

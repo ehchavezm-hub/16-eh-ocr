@@ -75,7 +75,8 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "La autoprueba del ejecutable falló" }
           if (-not (Select-String -Path autoprueba.txt -Pattern "'modelos': 'medium'" -Quiet)) { throw "El paquete no usa los modelos medium" }
           if (-not (Select-String -Path autoprueba.txt -Pattern "'tablas_estructura': True" -Quiet)) { throw "El paquete no incluye el modelo de tablas" }
-          if (-not (Select-String -Path autoprueba.txt -Pattern "'tablas_layout': True" -Quiet)) { throw "El paquete no incluye el detector de tablas" }
+          if (-not (Select-String -Path autoprueba.txt -Pattern "'tablas_layout_preciso': True" -Quiet)) { throw "El paquete no incluye PP-DocLayout" }
+          if (-not (Select-String -Path autoprueba.txt -Pattern "'tablas_estructuras': 2" -Quiet)) { throw "El paquete no incluye los dos modelos de estructura de tablas" }
       - name: Comprimir
         shell: pwsh
         run: |
