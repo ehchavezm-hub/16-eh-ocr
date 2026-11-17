@@ -163,6 +163,8 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 - **Carpeta de salida:** junto al original; si no hay permiso de escritura, `Documentos\eh-ocr`.
 
 ## Interfaz (PySide6)
+- **Mockup aprobado:** https://claude.ai/artifact/TQooNLtLujGNeb8yBCX3A5 (privado) — 3 pantallas:
+  Inicio, Procesando un lote y Revisión del resultado. Es la referencia visual de la interfaz.
 - Ventana principal: arrastrar y soltar archivos o carpetas completas. Sirve igual para
   documentos sueltos y para lotes grandes.
 - Vista previa lado a lado (imagen | texto) con zoom y las palabras de baja confianza
