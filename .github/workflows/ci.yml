@@ -2,7 +2,7 @@ name: eh-ocr
 
 on:
   push:
-    branches: [main]
+    branches: [main, "claude/**"]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -34,9 +34,9 @@ jobs:
         run: pytest -v
 
   paquete-windows:
-    # Construye eh-ocr.zip solo al publicar una versión (tag v*) o a pedido,
-    # para no gastar minutos de Windows en cada cambio.
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    # Construye eh-ocr.zip al publicar una versión (tag v*), a pedido, o en ramas de
+    # desarrollo claude/**; no en cada cambio de main, para ahorrar minutos de Windows.
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/claude/')
     needs: pruebas
     runs-on: windows-latest
     steps:
