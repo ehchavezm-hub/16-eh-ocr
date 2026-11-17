@@ -17,12 +17,12 @@ datas += collect_data_files("docx")              # plantilla de Word
 hiddenimports = collect_submodules("rapidocr.inference_engine.onnxruntime")
 
 a = Analysis(
-    [str(RAIZ / "src" / "eh_ocr" / "__main__.py")],
+    [str(RAIZ / "src" / "lanzador.py")],
     pathex=[str(RAIZ / "src")],
     datas=datas,
     hiddenimports=hiddenimports,
     excludes=[
-        "tkinter", "matplotlib", "IPython", "pytest", "torch", "paddle", "openvino", "tensorrt",
+        "tkinter", "matplotlib", "IPython", "pytest", "pandas", "torch", "paddle", "openvino", "tensorrt",
         "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.QtQml", "PySide6.QtQuick",
         "PySide6.Qt3DCore", "PySide6.QtMultimedia", "PySide6.QtCharts", "PySide6.QtDataVisualization",
         "PySide6.QtPdf", "PySide6.QtSql", "PySide6.QtTest", "PySide6.QtDesigner",

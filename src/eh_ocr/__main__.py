@@ -59,7 +59,43 @@ def autoprueba(destino: Path) -> int:
     return 0 if ok else 1
 
 
+def _salidas_seguras() -> None:
+    """En el .exe sin consola, stdout/stderr no existen: las librerías que escriben ahí fallarían."""
+    import os
+
+    for nombre in ("stdout", "stderr"):
+        if getattr(sys, nombre) is None:
+            setattr(sys, nombre, open(os.devnull, "w", encoding="utf-8"))
+
+
 def main() -> int:
+    _salidas_seguras()
+    try:
+        return _main()
+    except Exception:  # nunca una ventana de error técnica sin explicación
+        import traceback
+
+        detalle = traceback.format_exc()
+        try:
+            from . import config
+
+            (config.carpeta_datos() / "error_inicio.txt").write_text(detalle, encoding="utf-8")
+        except Exception:
+            pass
+        if len(sys.argv) >= 3 and sys.argv[1] == "--autoprueba":
+            Path(sys.argv[2]).write_text("FALLO al iniciar\n" + detalle, encoding="utf-8")
+            return 1
+        try:
+            from PySide6.QtWidgets import QApplication, QMessageBox
+
+            app = QApplication.instance() or QApplication(sys.argv)
+            QMessageBox.critical(None, "eh-ocr", "eh-ocr no pudo iniciarse. El detalle quedó en datos\\error_inicio.txt.")
+        except Exception:
+            pass
+        return 1
+
+
+def _main() -> int:
     from .red import bloquear_red
 
     bloquear_red()  # absolutamente autónomo: ninguna conexión de red
