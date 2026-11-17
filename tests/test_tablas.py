@@ -110,3 +110,67 @@ def test_tabla_sin_bordes(tmp_path):
     for esperado in ("Mes", "Febrero", "93,750.00", "60 %"):
         assert esperado in textos
     assert [tipo for tipo, _ in p.bloques()] == ["linea", "tabla", "linea"]
+
+
+def test_celdas_superpuestas_no_rompen_excel_ni_word(tmp_path):
+    """Regresión: una celda en «L» se superponía con otra y Excel fallaba ('value' is read-only)."""
+    from eh_ocr.modelo import EstadoPagina, Linea, Palabra, PerfilPagina, ResultadoDocumento, ResultadoPagina, TipoPagina
+    from eh_ocr.tablas import Celda, Tabla, asignar_palabras, normalizar
+
+    palabras = [Palabra(t, 0.99, (x, y, x + 80, y + 30)) for t, x, y in
+                [("A", 10, 10), ("B", 210, 10), ("C", 10, 110), ("D", 210, 110), ("E", 410, 110)]]
+    t = Tabla((0, 0, 600, 200), 2, 3, [
+        Celda(0, 0, 2, 2, (0, 0, 400, 200)),   # 2x2 que se superpone con las siguientes
+        Celda(0, 1, 1, 2, (200, 0, 600, 100)),
+        Celda(1, 2, 1, 1, (400, 100, 600, 200)),
+        Celda(5, 5, 1, 1, (0, 0, 1, 1)),        # fuera de la tabla
+    ], "bordes")
+    normalizar(t)
+    asignar_palabras(t, palabras)
+    ocupadas = [(c.fila + r, c.col + k) for c in t.celdas for r in range(c.filas) for k in range(c.cols)]
+    assert len(ocupadas) == len(set(ocupadas))  # sin superposiciones
+    assert all(c.fila + c.filas <= 2 and c.col + c.cols <= 3 for c in t.celdas)
+
+    perfil = PerfilPagina(1, TipoPagina.ESCANEO, 600, 200, 300, 144, 48)
+    r = ResultadoDocumento(str(tmp_path / "doc.png"),
+                           [ResultadoPagina(perfil, [Linea(palabras)], EstadoPagina.OK, ["RapidOCR"], 0.99, 1.0, tablas=[t])])
+    errores: list[str] = []
+    rutas = salidas.generar(r, ("xlsx", "docx"), tmp_path, errores=errores)
+    assert errores == [] and len(rutas) == 2
+
+
+def test_un_formato_que_falla_no_impide_los_demas(tmp_path, monkeypatch):
+    from eh_ocr.modelo import EstadoPagina, Linea, Palabra, PerfilPagina, ResultadoDocumento, ResultadoPagina, TipoPagina
+    from eh_ocr.salidas import xlsx_salida
+
+    def falla(*_a, **_k):
+        raise RuntimeError("prueba")
+
+    monkeypatch.setattr(xlsx_salida, "escribir", falla)
+    perfil = PerfilPagina(1, TipoPagina.ESCANEO, 600, 200, 300, 144, 48)
+    r = ResultadoDocumento(str(tmp_path / "doc.png"),
+                           [ResultadoPagina(perfil, [Linea([Palabra("hola", 0.99, (0, 0, 50, 20))])], EstadoPagina.OK, [], 0.99, 1.0)])
+    errores: list[str] = []
+    rutas = salidas.generar(r, ("txt", "xlsx", "docx"), tmp_path, errores=errores)
+    assert [p.suffix for p in rutas] == [".txt", ".docx"]
+    assert errores and "Excel" in errores[0]
+    assert not list(tmp_path.glob("*.xlsx"))  # nada a medias en disco
+
+
+def test_se_elige_la_estructura_que_no_junta_columnas():
+    """Regresión (CI): el modelo juntó «Mes» y «Avance» en una celda; gana la alineación."""
+    from eh_ocr.modelo import Palabra
+    from eh_ocr.tablas import Celda, Tabla, _mejor_candidato
+
+    palabras = []
+    for r, fila in enumerate([["Mes", "Avance", "Monto"], ["Enero", "12", "45,000"], ["Marzo", "40", "150,000"]]):
+        for c, t in enumerate(fila):
+            x, y = 100 + c * 700, 100 + r * 80
+            palabras.append(Palabra(t, 0.99, (x, y, x + 150, y + 40)))
+    juntadas = Tabla((0, 0, 2200, 340), 3, 2, [
+        Celda(r, 0, 1, 1, (0, 60 + r * 80, 1100, 140 + r * 80)) for r in range(3)] + [
+        Celda(r, 1, 1, 1, (1100, 60 + r * 80, 2200, 140 + r * 80)) for r in range(3)], "modelo")
+    separadas = Tabla((0, 0, 2200, 340), 3, 3, [
+        Celda(r, c, 1, 1, (c * 700 + 50, 60 + r * 80, c * 700 + 750, 140 + r * 80)) for r in range(3) for c in range(3)],
+        "alineacion")
+    assert _mejor_candidato([juntadas, separadas], palabras) is separadas

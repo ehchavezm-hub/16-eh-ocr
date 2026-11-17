@@ -46,20 +46,24 @@ def etiqueta(texto: str, nombre: str | None = None, envolver: bool = False) -> Q
     return l
 
 
-def abrir_en_explorador(ruta: Path) -> None:
+def abrir_en_explorador(ruta: Path) -> bool:
+    """Abre el Explorador de Windows; si `ruta` es un archivo, lo deja seleccionado."""
     ruta = Path(ruta)
+    carpeta = ruta if ruta.is_dir() else ruta.parent
     try:
         if sys.platform == "win32":
             if ruta.is_file():
-                subprocess.run(["explorer", "/select,", str(ruta)], check=False)
+                # Explorer exige "/select," y la ruta en UN solo argumento
+                subprocess.Popen(f'explorer /select,"{ruta}"')
             else:
-                os.startfile(str(ruta))  # type: ignore[attr-defined]
+                os.startfile(str(carpeta))  # type: ignore[attr-defined]
         elif sys.platform == "darwin":
-            subprocess.run(["open", str(ruta.parent if ruta.is_file() else ruta)], check=False)
+            subprocess.Popen(["open", str(carpeta)])
         else:
-            subprocess.run(["xdg-open", str(ruta.parent if ruta.is_file() else ruta)], check=False)
+            subprocess.Popen(["xdg-open", str(carpeta)])
+        return True
     except OSError:
-        pass
+        return False
 
 
 # --- Inicio -----------------------------------------------------------------
@@ -196,7 +200,7 @@ class PaginaInicio(QWidget):
 
 # --- Cola y lotes -------------------------------------------------------------
 
-COLUMNAS = ("Archivo", "Estado", "Páginas", "Confianza")
+COLUMNAS = ("", "Archivo", "Estado", "Páginas", "Confianza")
 
 
 class PaginaCola(QWidget):
@@ -211,8 +215,8 @@ class PaginaCola(QWidget):
 
         cab = QHBoxLayout()
         textos = QVBoxLayout()
-        self.lbl_titulo = etiqueta("Cola de documentos", "titulo")
-        self.lbl_sub = etiqueta("Arrastra documentos en «Procesar» para empezar.", "subtitulo")
+        self.lbl_titulo = etiqueta("Lista de documentos", "titulo")
+        self.lbl_sub = etiqueta("Agrega documentos en «Procesar», marca los que quieras y pulsa «Procesar seleccionados».", "subtitulo")
         textos.addWidget(self.lbl_titulo)
         textos.addWidget(self.lbl_sub)
         cab.addLayout(textos, 1)
@@ -238,6 +242,22 @@ class PaginaCola(QWidget):
         lt.addWidget(self.barra)
         lay.addWidget(t)
 
+        acciones = QHBoxLayout()
+        self.btn_procesar = QPushButton("Procesar seleccionados")
+        self.btn_procesar.setObjectName("primario")
+        self.btn_todos = QPushButton("Marcar todos")
+        self.btn_ninguno = QPushButton("Desmarcar todos")
+        self.btn_quitar = QPushButton("Quitar de la lista")
+        self.lbl_marcados = etiqueta("", "suave")
+        for w in (self.btn_procesar, self.btn_todos, self.btn_ninguno, self.btn_quitar):
+            acciones.addWidget(w)
+        acciones.addWidget(self.lbl_marcados, 1)
+        lay.addLayout(acciones)
+        self.btn_procesar.clicked.connect(self._procesar)
+        self.btn_todos.clicked.connect(lambda: self._marcar_todos(True))
+        self.btn_ninguno.clicked.connect(lambda: self._marcar_todos(False))
+        self.btn_quitar.clicked.connect(self._quitar)
+
         cuerpo = QSplitter()
         self.tabla = QTableWidget(0, len(COLUMNAS))
         self.tabla.setHorizontalHeaderLabels(COLUMNAS)
@@ -248,11 +268,13 @@ class PaginaCola(QWidget):
         self.tabla.setTextElideMode(Qt.TextElideMode.ElideMiddle)  # se ve inicio y final del nombre
         self.tabla.setWordWrap(False)
         cab_t = self.tabla.horizontalHeader()
-        cab_t.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        cab_t.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         cab_t.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        cab_t.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        cab_t.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         cab_t.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
-        self.tabla.cellDoubleClicked.connect(lambda fila, _c: self.revisar.emit(fila))
+        cab_t.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla.cellDoubleClicked.connect(self._doble_clic)
+        self.tabla.itemChanged.connect(self._casilla_cambiada)
         cuerpo.addWidget(self.tabla)
 
         lateral = tarjeta()
@@ -280,6 +302,47 @@ class PaginaCola(QWidget):
         trabajador.progreso_total.connect(self._progreso)
         trabajador.cola_terminada.connect(self._terminada)
 
+    # --- selección y procesamiento -----------------------------------------
+    marcar_para_revision = Signal(bool)  # True si se procesa un solo archivo (abrir revisión al final)
+
+    def _doble_clic(self, fila: int, _col: int) -> None:
+        if self.trabajador.trabajos[fila].terminado:
+            self.revisar.emit(fila)
+
+    def _casilla_cambiada(self, item: QTableWidgetItem) -> None:
+        if item.column() != 0 or item.row() >= len(self.trabajador.trabajos):
+            return
+        self.trabajador.trabajos[item.row()].marcado = item.checkState() == Qt.CheckState.Checked
+        self._actualizar_botones()
+
+    def _marcar_todos(self, valor: bool) -> None:
+        for t in self.trabajador.trabajos:
+            if t.estado != Estado.NO_ADMITIDO:
+                t.marcado = valor
+        self.sincronizar()
+
+    def _procesar(self) -> None:
+        n = len(self.trabajador.marcados_procesables())
+        if n:
+            self.marcar_para_revision.emit(n == 1)
+            self.trabajador.procesar_marcados()
+        self._actualizar_botones()
+
+    def _quitar(self) -> None:
+        filas = sorted({ix.row() for ix in self.tabla.selectionModel().selectedRows()})
+        if not filas:  # sin filas seleccionadas: se quitan los desmarcados
+            filas = [i for i, t in enumerate(self.trabajador.trabajos) if not t.marcado]
+        self.trabajador.quitar(filas)
+        self.sincronizar()
+
+    def _actualizar_botones(self) -> None:
+        n = len(self.trabajador.marcados_procesables())
+        total = len(self.trabajador.trabajos)
+        self.btn_procesar.setEnabled(n > 0)
+        self.btn_procesar.setText(f"Procesar seleccionados ({n})" if n else "Procesar seleccionados")
+        marcados = sum(1 for t in self.trabajador.trabajos if t.marcado)
+        self.lbl_marcados.setText(f"{marcados} de {total} marcados" if total else "")
+
     def _pausa(self, pausado: bool) -> None:
         self.trabajador.pausar(pausado)
         self.btn_pausa.setText("Continuar" if pausado else "Pausar")
@@ -297,20 +360,43 @@ class PaginaCola(QWidget):
             self.revisar.emit(i)
 
     def _abrir_resultados(self) -> None:
+        from PySide6.QtWidgets import QMessageBox
+
+        from ..archivos import carpeta_salida
+
         i = self._seleccion()
-        candidatos = [self.trabajador.trabajos[i]] if i is not None else list(reversed(self.trabajador.trabajos))
+        trabajos = self.trabajador.trabajos
+        candidatos = [trabajos[i]] if i is not None else list(reversed(trabajos))
         for t in candidatos:
-            if t.salidas:
-                abrir_en_explorador(t.salidas[0])
+            existentes = [s for s in t.salidas if Path(s).exists()]
+            if existentes:
+                abrir_en_explorador(existentes[0])
                 return
+        if not candidatos:
+            QMessageBox.information(self, "eh-ocr", "Todavía no hay documentos en la lista.")
+            return
+        # Aún sin resultados: se abre la carpeta donde se guardarán
+        t = candidatos[0]
+        destino = carpeta_salida(t.ruta, self.trabajador.carpeta)
+        abrir_en_explorador(destino)
+        QMessageBox.information(
+            self,
+            "eh-ocr",
+            f"«{t.ruta.name}» todavía no tiene resultados ({t.estado.value.lower()}).\n"
+            f"Se abrió la carpeta donde se guardarán:\n{destino}",
+        )
 
     def sincronizar(self) -> None:
         self.tabla.setRowCount(len(self.trabajador.trabajos))
         for i in range(len(self.trabajador.trabajos)):
             self.actualizar_fila(i)
         n = len(self.trabajador.trabajos)
-        self.lbl_titulo.setText(f"Lote: {n} archivo{'s' if n != 1 else ''}")
-        self.lbl_sub.setText("Puedes cerrar la ventana: al volver a procesar, se retoma donde quedó.")
+        self.lbl_titulo.setText(f"Lista: {n} archivo{'s' if n != 1 else ''}")
+        self.lbl_sub.setText(
+            "Marca los archivos y pulsa «Procesar seleccionados». Si cierras la ventana, "
+            "al volver a procesar se retoma donde quedó."
+        )
+        self._actualizar_botones()
 
     def actualizar_fila(self, i: int) -> None:
         if i >= self.tabla.rowCount():
@@ -322,16 +408,24 @@ class PaginaCola(QWidget):
         elif t.mensaje and t.estado in (Estado.DUDOSO, Estado.ERROR, Estado.NO_ADMITIDO, Estado.CANCELADO):
             estado = f"{t.estado.value}: {t.mensaje}"
         prefijo = {Estado.LISTO: "✓ ", Estado.DUDOSO: "⚠ ", Estado.PROTEGIDO: "🔒 "}.get(t.estado, "")
+        self.tabla.blockSignals(True)
+        casilla = QTableWidgetItem()
+        bloqueada = t.estado in (Estado.PROCESANDO, Estado.COLA, Estado.NO_ADMITIDO)
+        casilla.setFlags(Qt.ItemFlag.ItemIsSelectable | (Qt.ItemFlag.NoItemFlags if bloqueada else Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable))
+        casilla.setCheckState(Qt.CheckState.Checked if t.marcado else Qt.CheckState.Unchecked)
+        casilla.setToolTip("Marcar para procesar")
+        self.tabla.setItem(i, 0, casilla)
         valores = (
             t.ruta.name,
             prefijo + estado,
             str(t.paginas) if t.paginas else "—",
             f"{t.confianza * 100:.1f} %" if t.confianza is not None else "—",
         )
-        for c, v in enumerate(valores):
+        for c, v in enumerate(valores, start=1):
             item = QTableWidgetItem(v)
-            item.setToolTip(str(t.ruta) if c == 0 else v)
+            item.setToolTip(str(t.ruta) if c == 1 else v)
             self.tabla.setItem(i, c, item)
+        self.tabla.blockSignals(False)
         if t.estado == Estado.PROCESANDO and t.detalle:
             d = t.detalle
             self.lbl_ahora.setText(
@@ -351,7 +445,8 @@ class PaginaCola(QWidget):
 
     def _terminada(self) -> None:
         self.btn_pausa.setChecked(False)
-        self.lbl_ahora.setText("Cola terminada.")
+        self.lbl_ahora.setText("Procesamiento terminado.")
+        self._actualizar_botones()
 
 
 # --- Informes -------------------------------------------------------------------

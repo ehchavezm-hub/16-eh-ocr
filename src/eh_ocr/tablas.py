@@ -165,6 +165,11 @@ def _cuadricula(ys: list[float], xs: list[float], separa_derecha, separa_abajo, 
     for miembros in grupos.values():
         r0, r1 = min(m[0] for m in miembros), max(m[0] for m in miembros)
         c0, c1 = min(m[1] for m in miembros), max(m[1] for m in miembros)
+        if len(miembros) != (r1 - r0 + 1) * (c1 - c0 + 1):
+            # grupo irregular (en L, por una línea cortada): una celda por casilla
+            for r, c in miembros:
+                celdas.append(Celda(r, c, 1, 1, (xs[c] + ox, ys[r] + oy, xs[c + 1] + ox, ys[r + 1] + oy)))
+            continue
         celdas.append(Celda(r0, c0, r1 - r0 + 1, c1 - c0 + 1, (xs[c0] + ox, ys[r0] + oy, xs[c1 + 1] + ox, ys[r1 + 1] + oy)))
     celdas.sort(key=lambda c: (c.fila, c.col))
     return celdas
@@ -358,12 +363,81 @@ def detectar_en_imagen(imagen: np.ndarray, palabras_trabajo: list[Palabra]) -> l
     for region in modelos.regiones(imagen):
         if any(_iou(region, t.caja) > 0.3 for t in tablas):
             continue  # ya detectada por sus bordes (más exacto)
-        t = modelos.estructura(imagen, region)
-        if t is None or t.n_cols < 2 or t.n_filas < 2 or len(t.celdas) < 4:
-            t = tabla_por_alineacion(region, palabras_trabajo)  # respaldo si el modelo no convence
+        candidatos = [
+            c for c in (modelos.estructura(imagen, region), tabla_por_alineacion(region, palabras_trabajo))
+            if c is not None and c.n_cols >= 2 and c.n_filas >= 2 and len(c.celdas) >= 4
+        ]
+        t = _mejor_candidato(candidatos, palabras_trabajo)
         if t is not None:
             tablas.append(t)
     return tablas
+
+
+def normalizar(t: Tabla) -> Tabla:
+    """Garantiza una cuadrícula válida: celdas dentro de la tabla y sin superposiciones.
+
+    Una celda que se superpone con otra ya ubicada se recorta a su primera posición libre
+    o se descarta (sus palabras irán a la celda más cercana). Así Word y Excel nunca reciben
+    combinaciones imposibles.
+    """
+    ocupadas: set[tuple[int, int]] = set()
+    limpias: list[Celda] = []
+    for c in sorted(t.celdas, key=lambda c: (c.fila, c.col, -(c.filas * c.cols))):
+        if not (0 <= c.fila < t.n_filas and 0 <= c.col < t.n_cols):
+            continue
+        filas = max(1, min(c.filas, t.n_filas - c.fila))
+        cols = max(1, min(c.cols, t.n_cols - c.col))
+        if (c.fila, c.col) in ocupadas:
+            continue
+        # achicar el rango hasta que no choque con celdas ya ubicadas
+        while cols > 1 and any((c.fila + r, c.col + k) in ocupadas for r in range(filas) for k in range(cols)):
+            cols -= 1
+        while filas > 1 and any((c.fila + r, c.col + k) in ocupadas for r in range(filas) for k in range(cols)):
+            filas -= 1
+        if any((c.fila + r, c.col + k) in ocupadas for r in range(filas) for k in range(cols)):
+            continue
+        for r in range(filas):
+            for k in range(cols):
+                ocupadas.add((c.fila + r, c.col + k))
+        c.filas, c.cols = filas, cols
+        limpias.append(c)
+    t.celdas = limpias
+    return t
+
+
+def huecos_internos(t: Tabla, palabras: list[Palabra]) -> int:
+    """Cuántas celdas tienen palabras muy separadas en un mismo renglón: señal de columnas juntadas."""
+    malas = 0
+    for c in t.celdas:
+        ps = [palabras[i] for i in c.indices]
+        for a in ps:
+            for b in ps:
+                if a is b or abs(a.cy - b.cy) > 0.5 * max(a.alto, 1):
+                    continue
+                if 0 < b.caja[0] - a.caja[2] > 2.5 * max(a.alto, b.alto, 1):
+                    malas += 1
+                    break
+            else:
+                continue
+            break
+    return malas
+
+
+def _mejor_candidato(candidatos: list[Tabla], palabras: list[Palabra]) -> Tabla | None:
+    """Arma la tabla con cada método y elige la que no junta columnas.
+
+    Empate: gana la del modelo (reconoce celdas combinadas). Más columnas reales también desempatan.
+    """
+    import copy
+
+    mejor, mejor_puntaje = None, None
+    for orden, cand in enumerate(candidatos):
+        prueba = normalizar(copy.deepcopy(cand))
+        asignar_palabras(prueba, palabras)
+        puntaje = (huecos_internos(prueba, palabras), -prueba.n_cols, orden)
+        if mejor_puntaje is None or puntaje < mejor_puntaje:
+            mejor, mejor_puntaje = cand, puntaje
+    return mejor
 
 
 def finalizar(tablas: list[Tabla], palabras: list[Palabra]) -> list[Tabla]:
@@ -371,6 +445,9 @@ def finalizar(tablas: list[Tabla], palabras: list[Palabra]) -> list[Tabla]:
     validas = []
     usados: set[int] = set()
     for t in sorted(tablas, key=lambda t: (t.caja[1], t.caja[0])):
+        normalizar(t)
+        if not t.celdas:
+            continue
         libres = [p if i not in usados else Palabra("", 0, (-1e9, -1e9, -1e9, -1e9)) for i, p in enumerate(palabras)]
         nuevos = asignar_palabras(t, libres)
         if _tabla_valida(t, palabras):

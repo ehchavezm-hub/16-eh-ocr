@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 
 
 class Estado(str, Enum):
+    PENDIENTE = "Listo para procesar"
     COLA = "En cola"
     PROCESANDO = "Procesando"
     LISTO = "Listo"
@@ -31,7 +32,8 @@ class Estado(str, Enum):
 @dataclass
 class Trabajo:
     ruta: Path
-    estado: Estado = Estado.COLA
+    estado: Estado = Estado.PENDIENTE
+    marcado: bool = True
     paginas: int = 0
     pagina_actual: int = 0
     confianza: float | None = None
@@ -44,6 +46,17 @@ class Trabajo:
     @property
     def terminado(self) -> bool:
         return self.estado in (Estado.LISTO, Estado.DUDOSO)
+
+
+def _clave(ruta: Path) -> str:
+    """Identidad de un archivo para no repetirlo en la lista (sin distinguir mayúsculas en Windows)."""
+    try:
+        r = str(Path(ruta).resolve())
+    except OSError:
+        r = str(Path(ruta).absolute())
+    import os
+
+    return os.path.normcase(r)
 
 
 class Trabajador(QObject):
@@ -62,17 +75,53 @@ class Trabajador(QObject):
         self._lock = threading.Lock()
 
     # --- API para la interfaz ----------------------------------------------
-    def agregar(self, rutas: list[Path]) -> list[int]:
-        nuevos = []
+    def agregar(self, rutas: list[Path]) -> tuple[list[int], int]:
+        """Agrega a la lista SIN procesar. Devuelve (índices nuevos, cantidad de repetidos)."""
+        nuevos, repetidos = [], 0
         with self._lock:
+            existentes = {_clave(t.ruta) for t in self.trabajos}
             for r in rutas:
+                clave = _clave(Path(r))
+                if clave in existentes:
+                    repetidos += 1
+                    continue
+                existentes.add(clave)
                 t = Trabajo(Path(r))
                 if t.ruta.suffix.lower() in EXT_HEIC:
                     t.estado = Estado.NO_ADMITIDO
+                    t.marcado = False
                     t.mensaje = "Formato HEIC: guarda o comparte la foto como JPG"
                 self.trabajos.append(t)
                 nuevos.append(len(self.trabajos) - 1)
-        return nuevos
+        return nuevos, repetidos
+
+    def marcados_procesables(self) -> list[int]:
+        return [
+            i for i, t in enumerate(self.trabajos)
+            if t.marcado and t.estado not in (Estado.PROCESANDO, Estado.COLA, Estado.NO_ADMITIDO)
+        ]
+
+    def procesar_marcados(self) -> int:
+        """Pone en cola los archivos marcados y arranca. Devuelve cuántos se encolaron."""
+        indices = self.marcados_procesables()
+        with self._lock:
+            for i in indices:
+                t = self.trabajos[i]
+                t.estado = Estado.COLA
+                t.mensaje = ""
+                t.pagina_actual = 0
+        for i in indices:
+            self.trabajo_cambiado.emit(i)
+        if indices:
+            self.iniciar()
+        return len(indices)
+
+    def quitar(self, indices: list[int]) -> int:
+        """Quita de la lista (no borra archivos). Los que se están procesando no se quitan."""
+        with self._lock:
+            quitar = {i for i in indices if self.trabajos[i].estado not in (Estado.PROCESANDO, Estado.COLA)}
+            self.trabajos = [t for i, t in enumerate(self.trabajos) if i not in quitar]
+        return len(quitar)
 
     def iniciar(self) -> None:
         if self.ocupado:
@@ -103,8 +152,10 @@ class Trabajador(QObject):
         self.trabajo_cambiado.emit(indice)
 
     def paginas_totales(self) -> tuple[int, int]:
-        hechas = sum(t.pagina_actual for t in self.trabajos)
-        total = sum(t.paginas for t in self.trabajos)
+        """Progreso de la tanda en curso (archivos en cola, procesando o ya procesados en ella)."""
+        en_tanda = [t for t in self.trabajos if t.estado != Estado.PENDIENTE]
+        hechas = sum(t.pagina_actual for t in en_tanda)
+        total = sum(t.paginas for t in en_tanda)
         return hechas, total
 
     # --- hilo de trabajo ---------------------------------------------------
@@ -144,7 +195,8 @@ class Trabajador(QObject):
         try:
             r = pipeline.procesar_documento(t.ruta, t.contrasena, al_progresar, self.control)
             t.resultado = r
-            t.salidas = salidas.generar(r, self.formatos, self.carpeta, t.contrasena)
+            errores: list[str] = []
+            t.salidas = salidas.generar(r, self.formatos, self.carpeta, t.contrasena, errores)
             pals = [w for p in r.paginas for w in p.palabras]
             t.confianza = r.confianza_media if pals else None
             t.paginas = len(r.paginas)
@@ -162,6 +214,10 @@ class Trabajador(QObject):
             else:
                 t.estado = Estado.LISTO
                 t.mensaje = ""
+            if errores:
+                t.estado = Estado.DUDOSO
+                aviso = "no se pudo crear " + "; ".join(errores)
+                t.mensaje = f"{t.mensaje}, {aviso}" if t.mensaje else aviso
         except pipeline.Cancelado:
             t.estado = Estado.CANCELADO
             t.mensaje = "Se retomará donde quedó si lo vuelves a procesar"

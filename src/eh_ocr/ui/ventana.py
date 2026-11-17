@@ -100,6 +100,7 @@ class VentanaPrincipal(QMainWindow):
 
         self.inicio.archivos_elegidos.connect(self.agregar_archivos)
         self.cola.revisar.connect(self.abrir_revision)
+        self.cola.marcar_para_revision.connect(self._marcar_sueltos)
         self.revision.volver.connect(lambda: self.mostrar("cola"))
         self.trabajador.cola_terminada.connect(self._cola_terminada)
         self.trabajador.pide_contrasenas.connect(self._pedir_contrasenas)
@@ -154,14 +155,20 @@ class VentanaPrincipal(QMainWindow):
 
     # --- cola ---------------------------------------------------------------------
     def agregar_archivos(self, rutas: list[Path]) -> None:
+        """Agrega a la lista para elegir qué procesar. NO procesa todavía."""
         archivos = listar_archivos(rutas)
         if not archivos:
             return
-        self._sueltos = len(archivos) == 1 and not self.trabajador.ocupado
-        self.trabajador.agregar(archivos)
+        _, repetidos = self.trabajador.agregar(archivos)
         self.cola.sincronizar()
         self.mostrar("cola")
-        self.trabajador.iniciar()
+        if repetidos:
+            self.statusBar().showMessage(
+                f"{repetidos} archivo{'s' if repetidos != 1 else ''} ya estaba{'n' if repetidos != 1 else ''} en la lista.", 6000
+            )
+
+    def _marcar_sueltos(self, uno_solo: bool) -> None:
+        self._sueltos = uno_solo
 
     def _cola_terminada(self) -> None:
         self.informes.actualizar()
