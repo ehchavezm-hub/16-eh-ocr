@@ -2,6 +2,19 @@
 
 ## 0.2.0 — Tablas y Excel
 
+Estabilidad y compatibilización (laptop corporativa con gráfica híbrida NVIDIA):
+- Caída del controlador NVIDIA con DirectML: una sola sesión en la gráfica; error → CPU;
+  registro de caídas (`datos/caidas.log`) y modo seguro en CPU tras una caída.
+- Rendimiento: Tesseract una vez por página y en el idioma detectado; página lenta o con error
+  se relee en modo rápido en vez de quedar «no procesada».
+- Avance visible: páginas totales, en lectura, porcentaje y tiempo restante.
+- Revisión: panel de corrección siempre visible, primera dudosa seleccionada, «Dar por buenas
+  todas las dudosas de esta página», «Reprocesar página» sin congelar la ventana.
+- Caché ligada a motores y modelos: si cambian, se vuelve a leer.
+- Informes: nombres y mensajes escapados (un nombre con HTML no se interpreta).
+- Registros: las librerías de OCR/tablas ya no llenan la consola de mensajes INFO.
+- Instalador sobre Python con accesos directos «eh-ocr» (Escritorio) y «Abrir eh-ocr».
+
 - Instalador sobre Python (`instalar.py`) para equipos que bloquean `.exe` sin firma.
 - La carpeta `datos` de la autoprueba ya no viaja dentro del ZIP.
 

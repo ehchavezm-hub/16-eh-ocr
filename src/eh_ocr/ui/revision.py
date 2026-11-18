@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -14,7 +15,6 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsView,
     QHBoxLayout,
-    QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
@@ -83,6 +83,7 @@ class VistaImagen(QGraphicsView):
 
 class PaginaRevision(QWidget):
     volver = Signal()
+    _reprocesada = Signal(int, object, str)  # número de página, ResultadoPagina | None, error
 
     def __init__(self, trabajador: Trabajador, paleta: Paleta) -> None:
         super().__init__()
@@ -100,7 +101,7 @@ class PaginaRevision(QWidget):
         lay.setSpacing(10)
 
         barra = QHBoxLayout()
-        btn_volver = QPushButton("← Volver al lote")
+        btn_volver = QPushButton("← Volver a la lista")
         btn_volver.clicked.connect(self.volver)
         self.btn_ant = QPushButton("‹")
         self.btn_ant.setAccessibleName("Página anterior")
@@ -130,6 +131,7 @@ class PaginaRevision(QWidget):
         self.btn_dudosa.clicked.connect(self.siguiente_dudosa)
         self.btn_guardar.clicked.connect(self.guardar)
         self.btn_reprocesar.clicked.connect(self.reprocesar_pagina)
+        self._reprocesada.connect(self._al_reprocesar)
 
         cuerpo = QSplitter()
         izq = tarjeta()
@@ -405,18 +407,37 @@ class PaginaRevision(QWidget):
                 return
 
     def reprocesar_pagina(self) -> None:
+        """Vuelve a leer la página en segundo plano: la ventana no se congela (puede tardar)."""
         t = self.trabajo
-        if t is None:
+        if t is None or getattr(self, "_reprocesando", False):
             return
-        self.lbl_estado.setText("Reprocesando la página…")
-        self.repaint()
-        try:
-            r = pipeline.procesar_documento(t.ruta, t.contrasena, paginas=[self.num_pagina])
-        except Exception as e:
-            QMessageBox.warning(self, "eh-ocr", f"No se pudo reprocesar: {e}")
+        self._reprocesando = True
+        numero = self.num_pagina
+        self.btn_reprocesar.setEnabled(False)
+        self.btn_reprocesar.setText("Reprocesando…")
+        self.lbl_estado.setText(f"Reprocesando la página {numero}… puedes seguir revisando otras páginas.")
+
+        def trabajar() -> None:
+            try:
+                r = pipeline.procesar_documento(t.ruta, t.contrasena, paginas=[numero])
+                self._reprocesada.emit(numero, r.paginas[numero - 1], "")
+            except Exception as e:  # noqa: BLE001
+                self._reprocesada.emit(numero, None, str(e))
+
+        threading.Thread(target=trabajar, name="eh-ocr-reprocesar", daemon=True).start()
+
+    def _al_reprocesar(self, numero: int, pagina, error: str) -> None:
+        self._reprocesando = False
+        self.btn_reprocesar.setEnabled(True)
+        self.btn_reprocesar.setText("Reprocesar página")
+        if error or pagina is None:
+            QMessageBox.warning(self, "eh-ocr", f"No se pudo reprocesar la página {numero}: {error}")
             return
-        t.resultado.paginas[self.num_pagina - 1] = r.paginas[self.num_pagina - 1]
-        self.ir_a_pagina(self.num_pagina)
+        self.trabajo.resultado.paginas[numero - 1] = pagina
+        if numero == self.num_pagina:
+            self.ir_a_pagina(numero)
+        else:
+            self._actualizar_estado()
 
     def guardar(self) -> None:
         t = self.trabajo

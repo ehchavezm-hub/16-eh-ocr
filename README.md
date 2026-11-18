@@ -15,6 +15,10 @@ Alcance completo: [ALCANCE.md](ALCANCE.md) · Licencias: [LICENCIAS.md](LICENCIA
 La primera vez Windows puede mostrar "Windows protegió su PC": pulsa **Más información →
 Ejecutar de todas formas**.
 
+En equipos corporativos que bloquean `.exe` sin firma, ver «Equipos que bloquean el .exe».
+Una vez instalado, se abre con el acceso directo **eh-ocr** (Escritorio) o **Abrir eh-ocr**
+(carpeta del proyecto), o con `py -3.13 -m eh_ocr`.
+
 Resultados: junto al original, como `nombre_ocr.pdf` (PDF con texto buscable) y
 `nombre_ocr.docx` (Word). También Excel, TXT, Markdown y JSON. Nunca se sobrescribe nada.
 
@@ -42,9 +46,10 @@ en el Escritorio. Funciona igual que el `.exe`.
 
 1. **Análisis de cada página**: ¿texto digital, escaneo o foto?
 2. **Preproceso**: orientación, enderezado, perspectiva y sombras (fotos), resolución, ruido.
-3. **Dos motores en paralelo** (RapidOCR PP-OCRv6 + Tesseract) y **votación** palabra a palabra.
-4. **Control de confianza**: si la página sale con baja confianza, se reintenta con otras
-   versiones de la imagen.
+3. **RapidOCR PP-OCRv6** lee la página; si la confianza es baja, reintenta con otras versiones
+   de la imagen.
+4. **Tesseract** lee una vez la mejor versión, en el idioma detectado, y se **vota** palabra a
+   palabra. Si una página tarda demasiado o un motor falla, se relee en modo rápido.
 5. **Corrección** de confusiones típicas (rn↔m, 0↔O…) con diccionarios castellano, inglés y alemán.
 6. **Salidas** y revisión: las palabras dudosas se corrigen con un clic.
 
@@ -63,6 +68,7 @@ Una página con texto digital nunca pasa por OCR: sale exacta e instantánea.
 pip install -e ".[dev]"
 pip install --no-deps -r requirements-tablas.txt
 pytest -v
+python -m pyflakes src tests scripts instalar.py
 ```
 
 (Las librerías de tablas se instalan sin dependencias porque pedirían versiones de

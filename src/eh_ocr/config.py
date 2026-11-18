@@ -108,3 +108,13 @@ MIN_CARACTERES_DIGITALES = 20  # una página con menos texto digital se trata co
 
 TIEMPO_LIMITE_BASE_S = 300  # tiempo límite por página; si se supera, se relee en modo rápido
 TIEMPO_LIMITE_RAPIDO_S = 120  # tiempo límite del modo rápido (solo RapidOCR)
+
+
+def silenciar_librerias() -> None:
+    """Las librerías de OCR y tablas crean sus registros con nivel INFO fijo al importarse.
+    Se dejan solo las advertencias (llamar después de cargarlas)."""
+    import logging
+
+    for nombre in list(logging.root.manager.loggerDict):
+        if "rapid" in nombre.lower():
+            logging.getLogger(nombre).setLevel(logging.WARNING)

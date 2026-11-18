@@ -24,7 +24,7 @@ class Equipo:
 
     @property
     def descripcion(self) -> str:
-        return f"{self.nucleos} núcleos · {self.ram_gb:.0f} GB RAM · {self.acelerador}"
+        return f"{self.nucleos} núcleos · {self.ram_gb:.0f} GB RAM"
 
 
 def _ram_gb() -> float:

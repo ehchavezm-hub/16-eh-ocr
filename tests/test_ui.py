@@ -76,3 +76,47 @@ def test_panel_de_correccion_siempre_visible(app, escaneo):
     assert pal.texto == "CORREGIDA" and not pal.dudosa
     assert rev.panel.isVisible()
     v.close()
+
+
+def test_informes_escapan_nombres_de_archivo(app, tmp_path):
+    """Seguridad: un nombre de archivo con HTML no se interpreta en Informes."""
+    from eh_ocr.ui.trabajador import Estado
+    from eh_ocr.ui.ventana import VentanaPrincipal
+
+    ruta = tmp_path / "<img src=x>contrato.pdf"
+    ruta.write_bytes(b"x")
+    v = VentanaPrincipal()
+    v.agregar_archivos([ruta])
+    v.trabajador.trabajos[0].estado = Estado.ERROR
+    v.trabajador.trabajos[0].mensaje = "<b>falla</b>"
+    v.informes.actualizar()
+    assert "<img" not in v.informes.texto.toHtml().split("<body")[1].replace("&lt;img", "")
+    assert "&lt;img src=x&gt;contrato.pdf" in v.informes.texto.toHtml()
+    v.close()
+
+
+def test_reprocesar_no_congela_la_ventana(app, escaneo):
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    from eh_ocr.pipeline import procesar_documento
+    from eh_ocr.ui.trabajador import Estado
+    from eh_ocr.ui.ventana import VentanaPrincipal
+
+    v = VentanaPrincipal()
+    v.agregar_archivos([escaneo])
+    t = v.trabajador.trabajos[0]
+    t.resultado = procesar_documento(escaneo)
+    t.estado = Estado.LISTO
+    v.abrir_revision(0)
+    rev = v.revision
+    rev.reprocesar_pagina()  # vuelve enseguida: trabaja en segundo plano
+    assert rev.btn_reprocesar.text() == "Reprocesando…"
+    for _ in range(300):
+        bucle = QEventLoop()
+        QTimer.singleShot(100, bucle.quit)
+        bucle.exec()
+        if not rev._reprocesando:
+            break
+    assert rev.btn_reprocesar.text() == "Reprocesar página"
+    assert "representantes" in rev._pagina().texto
+    v.close()

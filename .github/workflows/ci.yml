@@ -29,6 +29,8 @@ jobs:
           pip install --no-deps -r requirements-tablas.txt
       - name: Licencias (sin GPL/AGPL)
         run: python scripts/verificar_licencias.py
+      - name: Revisión estática (nombres sin definir, importaciones rotas)
+        run: python -m pyflakes src tests scripts instalar.py
       - name: Modelos (para probar también tablas sin bordes)
         run: python scripts/preparar_build.py --solo-modelos
       - name: Pruebas

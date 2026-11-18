@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
 from eh_ocr import salidas
 from eh_ocr.modelo import EstadoPagina, Linea, Palabra, PerfilPagina, ResultadoDocumento, ResultadoPagina, TipoPagina
 

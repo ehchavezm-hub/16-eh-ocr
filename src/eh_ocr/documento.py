@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pypdfium2 as pdfium
-from PIL import Image, ImageOps, ImageSequence
+from PIL import Image, ImageOps
 
 from . import config
 

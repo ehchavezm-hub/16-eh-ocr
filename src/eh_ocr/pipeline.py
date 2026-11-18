@@ -272,8 +272,6 @@ def _reconocer(base: preproceso.ImagenTrabajo, motores: Motores, rapido: bool) -
     """1) RapidOCR (rápido) sobre la imagen y, si la confianza es baja, sobre otras versiones;
     2) Tesseract UNA sola vez, sobre la mejor versión y solo en el idioma detectado; 3) votación.
     En modo rápido: solo RapidOCR sobre la imagen estándar."""
-    from .modelo import Palabra  # noqa: F401  (tipos)
-
     usar_rapid = motores.rapid.disponible()
     variantes = ("estandar",) if rapido else preproceso.VARIANTES
     mejor_t, mejor_pr, mejor_conf = None, [], -1.0
@@ -489,9 +487,9 @@ def procesar_documento(
                 i, t0 = activos.pop(fut)
                 try:
                     r = fut.result()
-                except Exception as e:  # el motor falló: no se cierra la app
-                    log.exception("Error en página %s", i + 1)
-                    r = _pagina_no_procesada(doc.pagina(i), f"Error: {e}", time.perf_counter() - t0)
+                except Exception:  # un motor falló: segunda oportunidad en modo rápido
+                    log.exception("Error en página %s: se relee en modo rápido", i + 1)
+                    r = _modo_rapido(ex, doc.pagina(i), motores, lector)
                 resultados[i] = r
                 if r.estado != EstadoPagina.NO_PROCESADA:
                     guardar_cache(ruta, r)

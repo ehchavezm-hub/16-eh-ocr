@@ -103,6 +103,7 @@ class MotorRapid(Motor):
                 except Exception as e:
                     log.warning("RapidOCR (DirectML=%s, medium=%s) falló: %s", dml, medium, e)
                     ultimo_error = e
+            config.silenciar_librerias()
             if self._motor is None:
                 raise MotorNoDisponible(f"RapidOCR no pudo iniciarse: {ultimo_error}")
             return self._motor

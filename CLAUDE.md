@@ -16,10 +16,14 @@ Para pruebas en Linux: `apt-get install -y tesseract-ocr tesseract-ocr-spa tesse
 ```bash
 cd /home/user/16-eh-ocr
 pytest -q
+python -m pyflakes src tests scripts instalar.py
 git add -A
 git diff --cached --quiet || git commit -m "auto: cambios de sesión $(date +%Y-%m-%d\ %H:%M)"
-git push origin main
+git push -u origin "$(git branch --show-current)"
 ```
+
+Push directo a `main` no está permitido en las sesiones: se trabaja en la rama de la sesión
+(`claude/...`) y se integra a `main` con pull request cuando el usuario lo aprueba.
 
 ## Proyecto
 
@@ -49,3 +53,13 @@ git push origin main
   (sin celdas superpuestas). Entre varios métodos gana el que no junta columnas.
 - Excel: escribir siempre con `_poner` (un texto con «=» nunca es fórmula). Word/Excel: `texto_xml`.
 - Documentos: nada se carga entero en memoria (PDF y TIFF página por página, PDFium bajo candado).
+- Rendimiento: RapidOCR prueba versiones de la imagen; Tesseract corre UNA vez por página y solo
+  en el idioma detectado. Tiempo límite 300 s → modo rápido (solo RapidOCR), nunca página perdida.
+- DirectML: UNA instancia/sesión (una página a la vez en la gráfica); varias simultáneas tumbaron
+  el controlador NVIDIA del usuario. Error de DirectML → CPU. Caída → `datos/caidas.log` y la
+  siguiente sesión arranca en CPU (`sesion_abierta`).
+- Librerías rapid*: registran INFO al importarse → `config.silenciar_librerias()` tras cargarlas.
+- Equipo del usuario: AppLocker bloquea `.exe` sin firma → se usa `instalar.py` (pythonw + acceso
+  directo). Tesseract firmado sí corre.
+- UI: todo texto de archivos/mensajes en HTML pasa por `html.escape`; tareas largas fuera del hilo
+  de la ventana.

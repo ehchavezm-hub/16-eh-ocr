@@ -509,30 +509,30 @@ class PaginaInformes(QWidget):
         lay.addWidget(self.texto, 1)
 
     def actualizar(self) -> None:
-        html = []
+        partes: list[str] = []
         for t in self.trabajador.trabajos:
             if t.resultado is None:
                 if t.estado not in (Estado.COLA, Estado.PROCESANDO):
-                    html.append(f"<h3>{t.ruta.name}</h3><p>{t.estado.value}. {t.mensaje}</p>")
+                    partes.append(f"<h3>{html.escape(t.ruta.name)}</h3><p>{html.escape(t.estado.value)}. {html.escape(t.mensaje)}</p>")
                 continue
             r = t.resultado
-            html.append(f"<h3>{t.ruta.name}</h3>")
-            html.append(
+            partes.append(f"<h3>{html.escape(t.ruta.name)}</h3>")
+            partes.append(
                 f"<p>Confianza media: <b>{r.confianza_media * 100:.1f} %</b> · Tiempo: {r.segundos:.1f} s · "
                 f"Páginas dudosas: {', '.join(map(str, r.paginas_dudosas)) or 'ninguna'} · "
                 f"No procesadas: {', '.join(map(str, r.paginas_no_procesadas)) or 'ninguna'}</p>"
             )
-            html.append("<table cellpadding='4'><tr><th align='left'>Pág.</th><th align='left'>Tipo</th>"
+            partes.append("<table cellpadding='4'><tr><th align='left'>Pág.</th><th align='left'>Tipo</th>"
                         "<th align='left'>Motores</th><th align='left'>Confianza</th><th align='left'>Tablas</th><th align='left'>Dudosas</th>"
                         "<th align='left'>Tiempo</th></tr>")
             for p in r.paginas:
-                estado = "no procesada: " + p.mensaje if p.estado == EstadoPagina.NO_PROCESADA else ""
-                html.append(
+                estado = "no procesada: " + html.escape(p.mensaje) if p.estado == EstadoPagina.NO_PROCESADA else ""
+                partes.append(
                     f"<tr><td>{p.perfil.numero}</td><td>{p.perfil.tipo.value}</td>"
-                    f"<td>{' + '.join(p.motores) or '—'}</td><td>{p.confianza_media * 100:.1f} %</td><td>{len(p.tablas)}</td>"
+                    f"<td>{html.escape(' + '.join(p.motores)) or '—'}</td><td>{p.confianza_media * 100:.1f} %</td><td>{len(p.tablas)}</td>"
                     f"<td>{len(p.dudosas)} {estado}</td><td>{p.segundos:.1f} s</td></tr>"
                 )
-            html.append("</table>")
+            partes.append("</table>")
             if t.salidas:
-                html.append("<p>Resultados: " + " · ".join(s.name for s in t.salidas) + "</p>")
-        self.texto.setHtml("".join(html) or "<p>Aún no hay documentos procesados.</p>")
+                partes.append("<p>Resultados: " + " · ".join(html.escape(s.name) for s in t.salidas) + "</p>")
+        self.texto.setHtml("".join(partes) or "<p>Aún no hay documentos procesados.</p>")

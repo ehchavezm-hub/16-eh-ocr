@@ -16,8 +16,7 @@ def _configurar_registro() -> None:
     # El registro nunca guarda el contenido de los documentos: solo eventos y errores.
     manejador.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.basicConfig(level=logging.INFO, handlers=[manejador])
-    for ruidoso in ("RapidOCR", "RapidTable", "rapid_layout", "rapid_table", "rapidocr"):
-        logging.getLogger(ruidoso).setLevel(logging.WARNING)
+    config.silenciar_librerias()
 
 
 def autoprueba(destino: Path) -> int:
@@ -65,6 +64,7 @@ def autoprueba(destino: Path) -> int:
 
 
 _archivo_caidas = None
+_apps: list = []  # mantiene viva la QApplication del diálogo de error de inicio
 
 
 def _registrar_caidas() -> None:
@@ -132,7 +132,8 @@ def main() -> int:
         try:
             from PySide6.QtWidgets import QApplication, QMessageBox
 
-            app = QApplication.instance() or QApplication(sys.argv)
+            if QApplication.instance() is None:
+                _apps.append(QApplication(sys.argv))  # necesaria para mostrar el diálogo
             QMessageBox.critical(None, "eh-ocr", "eh-ocr no pudo iniciarse. El detalle quedó en datos\\error_inicio.txt.")
         except Exception:
             pass

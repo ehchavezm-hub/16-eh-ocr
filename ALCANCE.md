@@ -58,13 +58,18 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 
 ## Equipo objetivo
 - **Equipo de referencia (desarrollo y validación):** laptop Intel Core Ultra 7 255H,
-  32 GB de RAM, gráfica integrada Intel Arc, NPU Intel AI Boost, Windows 11 Pro 25H2 (64 bits),
-  equipo corporativo unido a dominio.
+  32 GB de RAM, gráfica integrada Intel Arc + gráfica NVIDIA (híbrida), NPU Intel AI Boost,
+  Windows 11 Pro 25H2 (64 bits), equipo corporativo unido a dominio con control de aplicaciones
+  (bloquea `.exe` sin firma: se instala con `instalar.py`).
 - **Mínimo soportado:** Intel Core i5 de 11.ª generación, 8 GB de RAM, Windows 10/11 de 64 bits.
 - **Aceleración automática:** un solo acelerador, **ONNX Runtime + DirectML** (MIT), que usa
   cualquier gráfica compatible con Windows (Intel Arc, Iris Xe, NVIDIA, AMD). Si no hay gráfica
   compatible o falla, vuelve a CPU sin intervención del usuario. No se usa la NPU (se descartó
   OpenVINO para ahorrar ~150–200 MB).
+  - **Con la gráfica, una página a la vez** (una sola sesión DirectML): varias sesiones
+    simultáneas hicieron caer el controlador NVIDIA. En CPU, varias páginas en paralelo.
+  - Si la gráfica da un error, se continúa en CPU. Si una sesión termina de golpe, la siguiente
+    arranca en CPU (modo seguro) y lo avisa; las caídas quedan en `datos\caidas.log`.
 - **Un solo modo de calidad: máxima.** No hay perfiles "ligeros"; el hardware solo define cuántas
   páginas se procesan en paralelo.
 
@@ -118,8 +123,9 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
    Elige el especialista según el perfil de la página. Una página puede usar varios
    especialistas a la vez, por ejemplo texto + tabla + fórmula en distintas regiones.
 4. CONTROL DE CONFIANZA
-   Mide la confianza por palabra, por línea y por página. Si baja del umbral, la región se
-   reintenta con otro preproceso, pasa a otro motor o se resuelve por votación.
+   Mide la confianza por palabra, por línea y por página. Si baja del umbral, RapidOCR
+   reintenta con otras versiones de la imagen; luego Tesseract lee UNA vez la mejor versión,
+   solo en el idioma detectado, y se vota palabra a palabra.
 5. SALIDA
    TXT, Markdown, JSON con estructura (bloques, coordenadas, confianza, motor usado),
    PDF con texto buscable (pikepdf o pypdfium2), DOCX (python-docx) y CSV/XLSX para tablas
@@ -130,8 +136,8 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 |---|---|---|
 | PDF con texto digital | pdfplumber + pypdfium2 (sin OCR) | — |
 | Estructura: columnas, títulos, orden de lectura | Orden geométrico (detección de dos columnas) | RapidLayout (pendiente: orden por bloques) |
-| Texto impreso escaneado | RapidOCR modelos *server* (ONNX) | Votación con Tesseract (tessdata_best) |
-| Fotos de celular | Preproceso de perspectiva/iluminación + RapidOCR *server* | Reintento con otro preproceso + votación |
+| Texto impreso escaneado | RapidOCR PP-OCRv6 *medium* (ONNX) | Votación con Tesseract (tessdata_best, idioma detectado) |
+| Fotos de celular | Preproceso de perspectiva/iluminación + RapidOCR *medium* | Reintento con otro preproceso + votación |
 | Tablas | PDF digital: líneas del PDF (pdfplumber). Imagen: cuadrícula por bordes (OpenCV) | Zona por PP-DocLayout v3 + estructura por SLANet+, SLANet-en y alineación: gana la que no junta columnas |
 | Facturas, recibos, formularios | RapidLayout + RapidTable + reglas de extracción de campos | Votación |
 | Escritura a mano *(complemento)* | TrOCR (ONNX, cuantizado) | Votación con RapidOCR; si persiste, marcar para revisión |
@@ -149,9 +155,9 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 
 ## Inteligencia
 - **Primero lo barato:** una página digital nunca pasa por OCR.
-- **Votación por defecto** en toda página escaneada o fotografiada: dos motores en paralelo,
-  alineación palabra a palabra; donde no coinciden, decide un tercero o el reintento con otro
-  preproceso.
+- **Votación por defecto** en toda página escaneada o fotografiada: RapidOCR y luego Tesseract
+  (una vez, en el idioma detectado), alineación palabra a palabra; donde no coinciden deciden el
+  diccionario y la confianza, y la palabra queda marcada con ambas lecturas.
 - **Confianza medida:** umbrales por motor y tipo de contenido, calibrados con el corpus.
 - **Corrección final:** corrector ortográfico por idioma con diccionarios incluidos, y reglas
   para confusiones típicas (rn↔m, 0↔O, 1↔l). Cada cambio queda marcado.
@@ -161,8 +167,11 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 ## Comportamiento ante situaciones especiales
 - **PDF con contraseña:** pide la clave. En lotes, deja el archivo pendiente, sigue con los
   demás y al final pide todas las claves juntas. La clave nunca se guarda.
-- **Página que se cuelga** (archivo dañado o malicioso): tiempo límite automático por página;
-  se marca "no procesada", se sigue con el resto y se puede reintentar.
+- **Página lenta o con error** (página muy densa, archivo dañado o malicioso): tiempo límite de
+  300 s; si se supera o un motor falla, la página se relee en **modo rápido** (solo RapidOCR) y
+  queda marcada. Solo si también falla queda "no procesada" y se puede reprocesar.
+- **Avance visible:** total de páginas desde el inicio, páginas en lectura, porcentaje y tiempo
+  restante estimado.
 - **Archivo de salida existente:** se renombra (`informe (1).txt`), nunca se sobrescribe.
 - **Carpeta de salida:** junto al original; si no hay permiso de escritura, `Documentos\eh-ocr`.
 

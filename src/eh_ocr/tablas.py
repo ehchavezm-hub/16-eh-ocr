@@ -310,6 +310,7 @@ class ModelosTablas:
         except Exception as e:
             log.warning("Estructura de tablas (RapidTable) no disponible: %s", e)
             return
+        config.silenciar_librerias()
         for archivo, tipo in self.ESTRUCTURAS:
             ruta = carpeta / archivo
             if not ruta.exists():
@@ -319,6 +320,7 @@ class ModelosTablas:
                     model_type=getattr(TipoTabla, tipo), model_dir_or_path=str(ruta), use_ocr=False)))
             except Exception as e:
                 log.warning("Modelo de tablas %s no pudo iniciarse: %s", archivo, e)
+        config.silenciar_librerias()
 
     @property
     def estado(self) -> dict:
