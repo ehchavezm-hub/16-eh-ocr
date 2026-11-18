@@ -1,0 +1,11 @@
+{
+  "color": "green",
+  "h": 122,
+  "kind": "rounded",
+  "size": "body",
+  "text": "**Texto exacto**\npdfplumber lee el texto del PDF, instantáneo",
+  "type": "shape",
+  "w": 220,
+  "x": 904,
+  "y": 224
+}

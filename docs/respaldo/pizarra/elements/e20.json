@@ -1,0 +1,12 @@
+{
+  "color": "white",
+  "h": 520,
+  "kind": "rounded",
+  "size": "body",
+  "text": "**Se guardan junto al original**\n\n- PDF buscable\n- Word, con tablas reales\n- Excel, con celdas y números\n- TXT · Markdown · JSON\n\nNunca sobrescribe: crea «(1)».",
+  "textAlign": "left",
+  "type": "shape",
+  "w": 212,
+  "x": 2020,
+  "y": 224
+}

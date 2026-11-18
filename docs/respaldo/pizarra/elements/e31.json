@@ -1,0 +1,8 @@
+{
+  "from": "e9",
+  "fromSide": "bottom",
+  "label": "foto",
+  "to": "e19",
+  "toSide": "left",
+  "type": "arrow"
+}

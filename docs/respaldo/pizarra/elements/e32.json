@@ -1,0 +1,8 @@
+{
+  "from": "e10",
+  "fromSide": "right",
+  "label": "sí",
+  "to": "e11",
+  "toSide": "left",
+  "type": "arrow"
+}

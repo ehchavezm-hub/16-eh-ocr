@@ -1,0 +1,8 @@
+{
+  "from": "e10",
+  "fromSide": "bottom",
+  "label": "no: texto basura",
+  "to": "e13",
+  "toSide": "top",
+  "type": "arrow"
+}

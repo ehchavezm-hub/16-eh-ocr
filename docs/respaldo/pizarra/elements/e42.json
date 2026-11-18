@@ -1,0 +1,8 @@
+{
+  "from": "e19",
+  "fromSide": "top",
+  "label": "sigue como escaneo",
+  "to": "e13",
+  "toSide": "bottom",
+  "type": "arrow"
+}

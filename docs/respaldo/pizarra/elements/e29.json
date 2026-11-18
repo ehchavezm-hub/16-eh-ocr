@@ -1,0 +1,8 @@
+{
+  "from": "e9",
+  "fromSide": "top",
+  "label": "PDF con texto",
+  "to": "e10",
+  "toSide": "left",
+  "type": "arrow"
+}
