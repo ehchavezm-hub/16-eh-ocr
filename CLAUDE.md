@@ -54,7 +54,7 @@ Push directo a `main` no está permitido en las sesiones: se trabaja en la rama 
 - Excel: escribir siempre con `_poner` (un texto con «=» nunca es fórmula). Word/Excel: `texto_xml`.
 - Documentos: nada se carga entero en memoria (PDF y TIFF página por página, PDFium bajo candado).
 - Rendimiento: RapidOCR prueba versiones de la imagen; Tesseract corre UNA vez por página y solo
-  en el idioma detectado. Tiempo límite 300 s → modo rápido (solo RapidOCR), nunca página perdida.
+  en los idiomas presentes (`idiomas_presentes`). Tiempo límite 300 s → modo rápido (solo RapidOCR), nunca página perdida.
 - DirectML: UNA instancia/sesión (una página a la vez en la gráfica); varias simultáneas tumbaron
   el controlador NVIDIA del usuario. Error de DirectML → CPU. Caída → `datos/caidas.log`; se crea
   `datos/solo_cpu` y desde entonces se usa CPU (borrarlo para volver a la gráfica).

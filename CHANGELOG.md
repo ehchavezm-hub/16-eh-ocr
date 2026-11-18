@@ -5,7 +5,7 @@
 Estabilidad y compatibilización (laptop corporativa con gráfica híbrida NVIDIA):
 - Caída del controlador NVIDIA con DirectML: una sola sesión en la gráfica; error → CPU;
   registro de caídas (`datos/caidas.log`) y modo seguro en CPU tras una caída.
-- Rendimiento: Tesseract una vez por página y en el idioma detectado; página lenta o con error
+- Rendimiento: Tesseract una vez por página y solo en los idiomas presentes; página lenta o con error
   se relee en modo rápido en vez de quedar «no procesada».
 - Avance visible: páginas totales, en lectura, porcentaje y tiempo restante.
 - Revisión: panel de corrección siempre visible, primera dudosa seleccionada, «Dar por buenas

@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eh-ocr — Alcance</title>
+<style>
+:root {
+  --fondo: #f6f7f9; --panel: #ffffff; --borde: #d9dde3; --texto: #1d2430; --suave: #556070;
+  --acento: #1d4ed8; --acento-suave: #e3ebfc;
+  --decision: #fdf1c4; --decision-borde: #c99a06;
+  --exacto: #dcf3e3; --exacto-borde: #2f8a4c;
+  --ocr: #e1eafb; --ocr-borde: #3a64c8;
+  --seguro: #fde6d6; --seguro-borde: #c4672a;
+  --ok: #1f7a3d; --pend: #9a5b00; --riesgo: #a8321e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fondo: #15181d; --panel: #1d2128; --borde: #343a45; --texto: #e6e9ee; --suave: #a3acba;
+    --acento: #7aa2f7; --acento-suave: #233150;
+    --decision: #4a3d12; --decision-borde: #e0b23a;
+    --exacto: #173a24; --exacto-borde: #5cc283;
+    --ocr: #1c2a48; --ocr-borde: #7aa2f7;
+    --seguro: #4a2a17; --seguro-borde: #f0a06a;
+    --ok: #6fd393; --pend: #f2c14e; --riesgo: #f08b77;
+  }
+}
+:root[data-theme="dark"] {
+  --fondo: #15181d; --panel: #1d2128; --borde: #343a45; --texto: #e6e9ee; --suave: #a3acba;
+  --acento: #7aa2f7; --acento-suave: #233150;
+  --decision: #4a3d12; --decision-borde: #e0b23a;
+  --exacto: #173a24; --exacto-borde: #5cc283;
+  --ocr: #1c2a48; --ocr-borde: #7aa2f7;
+  --seguro: #4a2a17; --seguro-borde: #f0a06a;
+  --ok: #6fd393; --pend: #f2c14e; --riesgo: #f08b77;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fondo); color: var(--texto);
+  font: 16px/1.55 "Segoe UI", Inter, system-ui, sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+header { margin-bottom: 28px; }
+h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.35rem; margin: 40px 0 12px; padding-top: 8px; border-top: 1px solid var(--borde); }
+h3 { font-size: 1.05rem; margin: 18px 0 6px; }
+p { margin: 6px 0 10px; }
+a { overflow-wrap: anywhere; }
+@media (max-width: 600px) { nav ol { columns: 1; } h1 { font-size: 1.7rem; } }
+.sub { color: var(--suave); font-size: 1.1rem; margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { background: var(--panel); border: 1px solid var(--borde); border-radius: 999px; padding: 4px 12px; font-size: .9rem; }
+nav { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px 16px; margin: 20px 0; }
+nav ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+nav a, a { color: var(--acento); }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.card { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 14px 16px; }
+.card h3 { margin-top: 0; }
+.estado-ok { color: var(--ok); font-weight: 600; }
+.estado-pend { color: var(--pend); font-weight: 600; }
+.estado-riesgo { color: var(--riesgo); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--borde);
+  border-radius: 12px; overflow: hidden; font-size: .95rem; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--borde); }
+th { background: var(--acento-suave); font-weight: 600; }
+tr:last-child td { border-bottom: none; }
+.tabla { overflow-x: auto; }
+code { background: var(--acento-suave); padding: 1px 5px; border-radius: 4px; font-size: .9em; }
+ol.pasos { padding-left: 22px; }
+ol.pasos li { margin: 6px 0; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 16px; font-size: .9rem; color: var(--suave); margin: 8px 0 4px; }
+.leyenda span::before { content: ""; display: inline-block; width: 14px; height: 14px; border-radius: 4px;
+  margin-right: 6px; vertical-align: -2px; border: 2px solid; }
+.l-dec::before { background: var(--decision); border-color: var(--decision-borde) !important; }
+.l-exa::before { background: var(--exacto); border-color: var(--exacto-borde) !important; }
+.l-ocr::before { background: var(--ocr); border-color: var(--ocr-borde) !important; }
+.l-seg::before { background: var(--seguro); border-color: var(--seguro-borde) !important; }
+.diagrama { background: var(--panel); border: 1px solid var(--borde); border-radius: 12px; padding: 12px; overflow-x: auto; }
+.diagrama svg { display: block; min-width: 900px; width: 100%; height: auto; }
+svg .dec { fill: var(--decision); stroke: var(--decision-borde); stroke-width: 2; }
+svg .exa { fill: var(--exacto); stroke: var(--exacto-borde); stroke-width: 2; }
+svg .ocr { fill: var(--ocr); stroke: var(--ocr-borde); stroke-width: 2; }
+svg .seg { fill: var(--seguro); stroke: var(--seguro-borde); stroke-width: 2; }
+svg .neu { fill: var(--panel); stroke: var(--suave); stroke-width: 1.5; }
+svg .carril { fill: none; stroke: var(--borde); stroke-width: 1.5; stroke-dasharray: 6 5; }
+svg .flecha { stroke: var(--suave); stroke-width: 2; fill: none; marker-end: url(#punta); }
+svg text { fill: var(--texto); font-family: "Segoe UI", Inter, system-ui, sans-serif; font-size: 13px; }
+svg .t-b { font-weight: 700; }
+svg .t-carril { font-weight: 700; font-size: 14px; fill: var(--suave); }
+svg .t-et { font-size: 12px; fill: var(--suave); font-style: italic; }
+footer { margin-top: 48px; color: var(--suave); font-size: .9rem; }
+@media print { nav { display: none; } body { background: #fff; } h2 { break-after: avoid; } .card, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <h1>eh-ocr — Alcance completo</h1>
+  <p class="sub">OCR para Windows: gratuito, sin internet, con la máxima precisión posible. Versión 0.2.0 · 18/11/2026.</p>
+  <div class="chips">
+    <span class="chip">Python 3.13</span><span class="chip">PySide6</span><span class="chip">ONNX Runtime + DirectML</span>
+    <span class="chip">Castellano · Inglés · Alemán</span><span class="chip">54 pruebas automáticas</span><span class="chip">Repositorio privado</span>
+  </div>
+</header>
+
+<nav aria-label="Contenido">
+  <ol>
+    <li><a href="#estado">Estado actual</a></li>
+    <li><a href="#principios">Principios no negociables</a></li>
+    <li><a href="#decision">Cómo decide el OCR (pizarra)</a></li>
+    <li><a href="#pipeline">Proceso de cada página</a></li>
+    <li><a href="#motores">Motores por situación</a></li>
+    <li><a href="#tablas">Tablas</a></li>
+    <li><a href="#seguridad-red">Red de seguridad</a></li>
+    <li><a href="#interfaz">Interfaz y resultados</a></li>
+    <li><a href="#equipo">Equipo, aceleración e instalación</a></li>
+    <li><a href="#reglas">Reglas técnicas y licencias</a></li>
+    <li><a href="#calidad">Calidad y tamaño</a></li>
+    <li><a href="#fases">Fases y pendientes</a></li>
+    <li><a href="#hallazgos">Seguridad: hallazgos</a></li>
+    <li><a href="#enlaces">Enlaces</a></li>
+  </ol>
+</nav>
+
+<section id="estado">
+  <h2>1. Estado actual</h2>
+  <div class="grid">
+    <div class="card"><h3>Hecho (0.1.0 – 0.2.0)</h3>
+      <p class="estado-ok">✓ Núcleo de OCR con votación de dos motores</p>
+      <p class="estado-ok">✓ PDF digital sin OCR, escaneos y fotos</p>
+      <p class="estado-ok">✓ Tablas con y sin bordes, celdas combinadas</p>
+      <p class="estado-ok">✓ Salidas PDF buscable, Word, Excel, TXT, MD, JSON</p>
+      <p class="estado-ok">✓ Revisión de dudosas, lista con casillas, avance</p>
+    </div>
+    <div class="card"><h3>Funcionando en el equipo del usuario</h3>
+      <p>Instalado sobre Python con <code>instalar.py</code> (la empresa bloquea <code>.exe</code> sin firma).</p>
+      <p>Procesó un contrato real y generó los 6 resultados.</p>
+      <p class="estado-pend">Por la caída del controlador NVIDIA, hoy trabaja con el procesador.</p>
+    </div>
+    <div class="card"><h3>Pendiente</h3>
+      <p class="estado-pend">• Medir velocidad por página y optimizar</p>
+      <p class="estado-pend">• Endurecimiento de seguridad (sección 13)</p>
+      <p class="estado-pend">• Facturas: extracción de campos</p>
+      <p class="estado-pend">• Complemento de manuscritos y fórmulas</p>
+      <p class="estado-pend">• Pasar a <code>main</code> y publicar 0.2.0</p>
+    </div>
+  </div>
+</section>
+
+<section id="principios">
+  <h2>2. Principios no negociables</h2>
+  <div class="grid">
+    <div class="card"><h3>100 % gratuito</h3><p>Solo licencias MIT, BSD, Apache 2.0, MPL o LGPL dinámica. Sin nube, sin claves, sin suscripciones.</p></div>
+    <div class="card"><h3>Todos los casos</h3><p>PDF digitales, escaneos, fotos de celular, tablas, facturas; manuscritos y fórmulas con el complemento.</p></div>
+    <div class="card"><h3>Nunca basura en silencio</h3><p>Cada palabra lleva su confianza. Lo dudoso se marca en amarillo y se informa.</p></div>
+    <div class="card"><h3>Aplicación de Windows</h3><p>Doble clic, sin ventana negra, sin <code>.bat</code> para el usuario.</p></div>
+    <div class="card"><h3>Absolutamente autónoma</h3><p>Sin internet nunca. Todo incluido. Portable, sin administrador, sin tocar el registro.</p></div>
+    <div class="card"><h3>Se recupera sola</h3><p>Si un motor o la gráfica fallan, sigue con otro camino sin cerrarse.</p></div>
+  </div>
+</section>
+
+<section id="decision">
+  <h2>3. Cómo decide el OCR según el archivo</h2>
+  <p><strong>Primero lo barato: OCR solo donde hace falta.</strong> La decisión se toma página por página: un mismo PDF puede mezclar páginas digitales y escaneadas.</p>
+  <div class="leyenda" aria-hidden="true">
+    <span class="l-dec">Decisión</span><span class="l-exa">Sin OCR (exacto)</span><span class="l-ocr">Paso de OCR</span><span class="l-seg">Red de seguridad</span>
+  </div>
+  <div class="diagrama">
+    <svg viewBox="0 0 1100 660" role="img" aria-label="Diagrama: cada página se clasifica como PDF con texto, escaneo o foto, y sigue su carril hasta los resultados">
+      <defs>
+        <marker id="punta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor" style="fill: var(--suave)"/>
+        </marker>
+      </defs>
+
+      <!-- carriles -->
+      <rect class="carril" x="225" y="20" width="725" height="120" rx="12"/>
+      <text class="t-carril" x="237" y="40">A · PDF con texto digital — sin OCR</text>
+      <rect class="carril" x="225" y="175" width="725" height="140" rx="12"/>
+      <text class="t-carril" x="237" y="195">B · Escaneo: PDF escaneado o imagen</text>
+      <rect class="carril" x="225" y="350" width="725" height="110" rx="12"/>
+      <text class="t-carril" x="420" y="372">C · Foto de celular</text>
+      <rect class="carril" x="965" y="20" width="125" height="440" rx="12"/>
+      <text class="t-carril" x="977" y="40">Resultados</text>
+
+      <!-- clasificación -->
+      <rect class="neu" x="10" y="215" width="80" height="50" rx="25"/>
+      <text class="t-b" x="50" y="245" text-anchor="middle">Archivo</text>
+      <polygon class="dec" points="160,190 215,240 160,290 105,240"/>
+      <text x="160" y="236" text-anchor="middle">¿Qué es cada</text>
+      <text x="160" y="252" text-anchor="middle">página?</text>
+      <path class="flecha" d="M90,240 L103,240"/>
+
+      <!-- carril A -->
+      <polygon class="dec" points="300,52 360,85 300,118 240,85"/>
+      <text x="300" y="82" text-anchor="middle">¿Texto</text>
+      <text x="300" y="97" text-anchor="middle">legible?</text>
+      <rect class="exa" x="420" y="55" width="200" height="60" rx="10"/>
+      <text class="t-b" x="520" y="80" text-anchor="middle">Texto exacto</text>
+      <text x="520" y="98" text-anchor="middle">pdfplumber, instantáneo</text>
+      <rect class="exa" x="660" y="55" width="270" height="60" rx="10"/>
+      <text class="t-b" x="795" y="80" text-anchor="middle">Tablas del PDF</text>
+      <text x="795" y="98" text-anchor="middle">líneas + PP-DocLayout (sin líneas)</text>
+      <path class="flecha" d="M360,85 L418,85"/><text class="t-et" x="375" y="78">sí</text>
+      <path class="flecha" d="M620,85 L658,85"/>
+      <path class="flecha" d="M930,85 L975,85 L975,150 L985,150"/>
+      <path class="flecha" d="M160,190 L160,85 L238,85"/><text class="t-et" x="168" y="120">PDF con texto</text>
+
+      <!-- carril B -->
+      <rect class="ocr" x="240" y="215" width="105" height="85" rx="10"/>
+      <text class="t-b" x="292" y="240" text-anchor="middle">Preproceso</text>
+      <text x="292" y="257" text-anchor="middle">300 ppp ·</text>
+      <text x="292" y="272" text-anchor="middle">orientación ·</text>
+      <text x="292" y="287" text-anchor="middle">enderezar</text>
+      <rect class="ocr" x="360" y="215" width="105" height="85" rx="10"/>
+      <text class="t-b" x="412" y="240" text-anchor="middle">RapidOCR</text>
+      <text x="412" y="257" text-anchor="middle">reintenta si</text>
+      <text x="412" y="272" text-anchor="middle">confía &lt; 90 %</text>
+      <rect class="ocr" x="480" y="215" width="105" height="85" rx="10"/>
+      <text class="t-b" x="532" y="240" text-anchor="middle">Tesseract</text>
+      <text x="532" y="257" text-anchor="middle">una vez, solo</text>
+      <text x="532" y="272" text-anchor="middle">en los idiomas</text>
+      <text x="532" y="287" text-anchor="middle">presentes</text>
+      <rect class="ocr" x="600" y="215" width="105" height="85" rx="10"/>
+      <text class="t-b" x="652" y="240" text-anchor="middle">Votación</text>
+      <text x="652" y="257" text-anchor="middle">palabra por</text>
+      <text x="652" y="272" text-anchor="middle">palabra +</text>
+      <text x="652" y="287" text-anchor="middle">diccionario</text>
+      <rect class="ocr" x="720" y="215" width="105" height="85" rx="10"/>
+      <text class="t-b" x="772" y="240" text-anchor="middle">Corrector</text>
+      <text x="772" y="257" text-anchor="middle">rn↔m, ú↔ü</text>
+      <text x="772" y="272" text-anchor="middle">dudosas si</text>
+      <text x="772" y="287" text-anchor="middle">&lt; 80 %</text>
+      <rect class="ocr" x="840" y="215" width="100" height="85" rx="10"/>
+      <text class="t-b" x="890" y="240" text-anchor="middle">Tablas</text>
+      <text x="890" y="257" text-anchor="middle">bordes o</text>
+      <text x="890" y="272" text-anchor="middle">modelos</text>
+      <path class="flecha" d="M345,257 L358,257"/><path class="flecha" d="M465,257 L478,257"/>
+      <path class="flecha" d="M585,257 L598,257"/><path class="flecha" d="M705,257 L718,257"/>
+      <path class="flecha" d="M825,257 L838,257"/>
+      <path class="flecha" d="M940,257 L975,257 L975,200 L985,200"/>
+      <path class="flecha" d="M215,240 L238,240"/><text class="t-et" x="168" y="300">escaneo</text>
+      <path class="flecha" d="M300,118 L300,140 L292,140 L292,213"/><text class="t-et" x="305" y="160">no: texto basura</text>
+
+      <!-- carril C -->
+      <rect class="ocr" x="240" y="385" width="160" height="60" rx="10"/>
+      <text class="t-b" x="320" y="410" text-anchor="middle">Foto</text>
+      <text x="320" y="428" text-anchor="middle">perspectiva + sombras</text>
+      <text class="t-et" x="420" y="412">se reconoce por los datos de cámara (EXIF) o la luz despareja,</text>
+      <text class="t-et" x="420" y="430">y luego sigue como escaneo</text>
+      <path class="flecha" d="M292,385 L292,302"/>
+      <path class="flecha" d="M160,290 L160,415 L238,415"/><text class="t-et" x="168" y="350">foto</text>
+
+      <!-- resultados -->
+      <rect class="neu" x="985" y="60" width="95" height="250" rx="10"/>
+      <text class="t-b" x="1032" y="85" text-anchor="middle">Junto al</text>
+      <text class="t-b" x="1032" y="101" text-anchor="middle">original</text>
+      <text x="1032" y="130" text-anchor="middle">PDF buscable</text>
+      <text x="1032" y="150" text-anchor="middle">Word</text>
+      <text x="1032" y="170" text-anchor="middle">Excel</text>
+      <text x="1032" y="190" text-anchor="middle">TXT · MD</text>
+      <text x="1032" y="210" text-anchor="middle">JSON</text>
+      <text x="1032" y="245" text-anchor="middle">nunca</text>
+      <text x="1032" y="261" text-anchor="middle">sobrescribe</text>
+      <rect class="neu" x="985" y="350" width="95" height="95" rx="10"/>
+      <text class="t-b" x="1032" y="380" text-anchor="middle">Revisión</text>
+      <text x="1032" y="400" text-anchor="middle">dudosas en</text>
+      <text x="1032" y="416" text-anchor="middle">amarillo, una</text>
+      <text x="1032" y="432" text-anchor="middle">tras otra</text>
+      <path class="flecha" d="M1032,310 L1032,348"/>
+
+      <!-- red de seguridad -->
+      <text class="t-carril" x="10" y="500">Red de seguridad: ninguna página se pierde</text>
+      <rect class="seg" x="10" y="512" width="170" height="64" rx="10"/>
+      <text class="t-b" x="95" y="538" text-anchor="middle">Página lenta (&gt; 300 s)</text>
+      <text x="95" y="556" text-anchor="middle">se relee en modo rápido</text>
+      <rect class="seg" x="192" y="512" width="170" height="64" rx="10"/>
+      <text class="t-b" x="277" y="538" text-anchor="middle">Un motor falla</text>
+      <text x="277" y="556" text-anchor="middle">modo rápido y se marca</text>
+      <rect class="seg" x="374" y="512" width="170" height="64" rx="10"/>
+      <text class="t-b" x="459" y="538" text-anchor="middle">La gráfica falla</text>
+      <text x="459" y="556" text-anchor="middle">sigue en el procesador</text>
+      <rect class="seg" x="556" y="512" width="170" height="64" rx="10"/>
+      <text class="t-b" x="641" y="538" text-anchor="middle">PDF con contraseña</text>
+      <text x="641" y="556" text-anchor="middle">pide la clave, no la guarda</text>
+      <rect class="seg" x="738" y="512" width="170" height="64" rx="10"/>
+      <text class="t-b" x="823" y="538" text-anchor="middle">HEIC</text>
+      <text x="823" y="556" text-anchor="middle">no admitido: usar JPG</text>
+      <rect class="seg" x="920" y="512" width="170" height="64" rx="10"/>
+      <text class="t-b" x="1005" y="538" text-anchor="middle">Se interrumpe</text>
+      <text x="1005" y="556" text-anchor="middle">retoma donde quedó</text>
+    </svg>
+  </div>
+  <p>Versión interactiva de esta pizarra (requiere acceso a la cuenta): <a href="https://claude.ai/artifact/Qw2JeqB5V1Aucq1b9bhmVB">pizarra «cómo decide el OCR»</a>.</p>
+</section>
+
+<section id="pipeline">
+  <h2>4. Proceso de cada página</h2>
+  <ol class="pasos">
+    <li><strong>Análisis</strong> (rápido, sin OCR): ¿texto digital legible?, ¿foto o escaneo?, resolución, contraste. Un PDF con texto «basura» (fuentes mal codificadas, <code>(cid:12)</code>) se trata como escaneo.</li>
+    <li><strong>Preproceso</strong> (solo imágenes): fotos → perspectiva y sombras; todas → ampliar a 300 ppp, orientación 90/180/270 (Tesseract OSD), enderezado, ruido y contraste. Cada transformación se registra para devolver las palabras a su lugar en el original.</li>
+    <li><strong>RapidOCR PP-OCRv6</strong> (modelos medium): si la confianza media es menor al 90 %, reintenta con la imagen binarizada y ampliada, y se queda con la mejor.</li>
+    <li><strong>Tesseract</strong> lee una sola vez la mejor versión, solo en los idiomas presentes en la página.</li>
+    <li><strong>Votación</strong> palabra a palabra: donde coinciden, la confianza sube; donde no, deciden el diccionario y la confianza, y quedan ambas lecturas para la revisión. Se conserva el orden de lectura a dos columnas.</li>
+    <li><strong>Corrector</strong> de confusiones típicas (rn↔m, 0↔O, 1↔l, ú↔ü) solo si el diccionario lo confirma. Palabras con menos de 80 % de confianza quedan dudosas.</li>
+    <li><strong>Tablas</strong> y <strong>salidas</strong>. Cada página terminada se guarda en caché: si se interrumpe, se retoma.</li>
+  </ol>
+</section>
+
+<section id="motores">
+  <h2>5. Motores por situación</h2>
+  <div class="tabla"><table>
+    <thead><tr><th>Situación</th><th>Motor principal</th><th>Si no alcanza</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td>PDF con texto digital</td><td>pdfplumber + pypdfium2, sin OCR</td><td>Si el texto es ilegible → OCR</td><td class="estado-ok">Hecho</td></tr>
+      <tr><td>Texto impreso escaneado</td><td>RapidOCR PP-OCRv6 medium</td><td>Votación con Tesseract (tessdata_best)</td><td class="estado-ok">Hecho</td></tr>
+      <tr><td>Fotos de celular</td><td>Perspectiva + iluminación + RapidOCR</td><td>Reintentos + votación</td><td class="estado-ok">Hecho</td></tr>
+      <tr><td>Orden de lectura</td><td>Geométrico con detección de dos columnas</td><td>Orden por bloques con RapidLayout</td><td class="estado-pend">Parcial</td></tr>
+      <tr><td>Tablas</td><td>Líneas del PDF · bordes (OpenCV)</td><td>PP-DocLayout v3 + SLANet+ / SLANet-en / alineación</td><td class="estado-ok">Hecho</td></tr>
+      <tr><td>Facturas y formularios</td><td>Zonas + tablas + reglas de campos</td><td>Votación</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>Manuscritos (complemento)</td><td>TrOCR en ONNX</td><td>Marcar para revisión</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>Fórmulas (complemento)</td><td>LaTeX-OCR en ONNX</td><td>Reintento</td><td class="estado-pend">Pendiente</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="tablas">
+  <h2>6. Tablas</h2>
+  <div class="grid">
+    <div class="card"><h3>Detección por capas</h3><p>PDF digital: líneas del propio PDF. Imagen con bordes: cuadrícula por líneas (OpenCV), con celdas combinadas. Sin bordes: zona por PP-DocLayout v3 y estructura por dos modelos y por alineación.</p></div>
+    <div class="card"><h3>Gana la mejor</h3><p>Cada tabla se arma con todos los métodos disponibles y se elige la que no junta columnas.</p></div>
+    <div class="card"><h3>Resultados</h3><p>Word: tablas reales con celdas combinadas. Excel: una hoja por página, bordes, números como números; un texto con «=» nunca se vuelve fórmula.</p></div>
+    <div class="card"><h3>Correcciones</h3><p>Las celdas apuntan a las palabras de la página: lo corregido en la revisión aparece dentro de las tablas.</p></div>
+  </div>
+</section>
+
+<section id="seguridad-red">
+  <h2>7. Red de seguridad</h2>
+  <div class="tabla"><table>
+    <thead><tr><th>Situación</th><th>Qué hace eh-ocr</th></tr></thead>
+    <tbody>
+      <tr><td>Página lenta (&gt; 300 s) o un motor falla</td><td>Se relee en modo rápido (solo RapidOCR) y queda marcada. Solo si también falla queda «no procesada» y se puede reprocesar.</td></tr>
+      <tr><td>La tarjeta gráfica falla</td><td>Pasa al procesador. Si eh-ocr se cerró de golpe, desde entonces usa el procesador (<code>datos\solo_cpu</code>; borrarlo para volver a probar la gráfica). Detalle en <code>datos\caidas.log</code>.</td></tr>
+      <tr><td>PDF con contraseña</td><td>Pide la clave; en lotes, al final y todas juntas. Nunca se guarda.</td></tr>
+      <tr><td>HEIC</td><td>No admitido: aviso para guardar la foto como JPG.</td></tr>
+      <tr><td>Interrupción o cierre</td><td>Retoma donde quedó (caché por página). La caché se renueva si cambian los motores y se limpia a los 30 días.</td></tr>
+      <tr><td>Archivo de salida ya existe</td><td>Se renombra («informe (1).pdf»); nunca se sobrescribe. Escritura atómica.</td></tr>
+      <tr><td>Carpeta sin permiso</td><td>Resultados en <code>Documentos\eh-ocr</code>; datos en la carpeta local del usuario.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="interfaz">
+  <h2>8. Interfaz y resultados</h2>
+  <div class="grid">
+    <div class="card"><h3>Procesar</h3><p>Arrastrar archivos o carpetas. Formatos de salida (por defecto PDF buscable y Word). Carpeta de destino: junto al original.</p></div>
+    <div class="card"><h3>Lista</h3><p>Casillas por archivo, sin repetidos ni resultados <code>…_ocr</code>. Nada se procesa hasta «Procesar seleccionados». Avance con páginas, porcentaje, páginas en lectura y tiempo restante.</p></div>
+    <div class="card"><h3>Revisar</h3><p>Original y texto lado a lado. La primera dudosa queda seleccionada; corregir o aceptar pasa a la siguiente. «Dar por buenas todas las dudosas de esta página». Reprocesar página sin congelar la ventana.</p></div>
+    <div class="card"><h3>Informes</h3><p>Por página: tipo, motores, confianza, tablas, dudosas y tiempo.</p></div>
+  </div>
+  <p>Mockup aprobado: <a href="https://claude.ai/artifact/TQooNLtLujGNeb8yBCX3A5">tres pantallas</a> (requiere acceso a la cuenta).</p>
+</section>
+
+<section id="equipo">
+  <h2>9. Equipo, aceleración e instalación</h2>
+  <div class="grid">
+    <div class="card"><h3>Equipo de referencia</h3><p>Intel Core Ultra 7 255H, 32 GB, gráfica híbrida Intel Arc + NVIDIA, Windows 11 Pro 25H2, laptop corporativa con control de aplicaciones.</p></div>
+    <div class="card"><h3>Mínimo</h3><p>Intel Core i5 de 11.ª generación, 8 GB de RAM, Windows 10/11 de 64 bits.</p></div>
+    <div class="card"><h3>Aceleración</h3><p>ONNX Runtime + DirectML: una página a la vez en la gráfica (varias tumbaron el controlador NVIDIA). En el procesador, varias en paralelo.</p></div>
+  </div>
+  <h3>Dos formas de instalar</h3>
+  <div class="tabla"><table>
+    <thead><tr><th></th><th>Ejecutable <code>eh-ocr.exe</code></th><th>Instalador <code>instalar.py</code></th></tr></thead>
+    <tbody>
+      <tr><td>Qué es</td><td>Carpeta portable (ZIP), se abre con doble clic</td><td>Instala sobre Python y crea los accesos «eh-ocr» y «Abrir eh-ocr»</td></tr>
+      <tr><td>Necesita Python</td><td>No</td><td>Sí (3.13)</td></tr>
+      <tr><td>Equipo del usuario</td><td class="estado-riesgo">Bloqueado: la empresa no permite <code>.exe</code> sin firma</td><td class="estado-ok">Funciona (como txt2media)</td></tr>
+      <tr><td>Origen</td><td>GitHub Actions → Artifacts / Releases</td><td>Toma modelos y Tesseract del ZIP, sin descargar nada</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="reglas">
+  <h2>10. Reglas técnicas y licencias</h2>
+  <ul>
+    <li>Motores en ONNX; sin PyTorch, PaddlePaddle ni OpenVINO.</li>
+    <li>Prohibido AGPL, GPL o no comercial, también en dependencias y pesos de modelos. Excluidos: PyMuPDF, marker, Surya, nougat, OCRmyPDF/Ghostscript, Kraken, HEIC, TableStructureRec, UniTable, TableFormer/docling.</li>
+    <li>Verificación automática de licencias en cada construcción.</li>
+    <li>Escritura atómica; nunca sobrescribir. Documentos página por página, sin cargarlos enteros en memoria.</li>
+    <li>Red bloqueada al iniciar; registros sin contenido de documentos; nada en el registro de Windows.</li>
+    <li>Librerías de tablas instaladas sin dependencias (evita OpenCV completo y ONNX Runtime de CPU).</li>
+    <li>Versiones de librerías con tope (las probadas); RapidOCR fijado a 3.10.x.</li>
+  </ul>
+</section>
+
+<section id="calidad">
+  <h2>11. Calidad y tamaño</h2>
+  <div class="grid">
+    <div class="card"><h3>Metas</h3><p>Error de caracteres menor a <strong>1 %</strong> en escaneos limpios y a <strong>5 %</strong> en fotos. Debe superar a las apps gratuitas existentes con el mismo corpus.</p></div>
+    <div class="card"><h3>Corpus</h3><p>20–30 documentos reales del usuario, con texto correcto preparado de forma asistida. Nunca se suben al repositorio.</p></div>
+    <div class="card"><h3>Pruebas</h3><p>54 pruebas automáticas, análisis estático y autoprueba del <code>.exe</code> sin internet en cada construcción.</p></div>
+  </div>
+  <h3>Tamaño medido</h3>
+  <div class="tabla"><table>
+    <thead><tr><th>Versión</th><th>ZIP</th><th>Descomprimido</th></tr></thead>
+    <tbody>
+      <tr><td>0.1.0 — núcleo</td><td>398 MB</td><td>783 MB</td></tr>
+      <tr><td>0.2.0 — tablas de alta precisión y Excel</td><td>531 MB</td><td>930 MB</td></tr>
+      <tr><td>Complemento manuscritos y fórmulas (estimado)</td><td>~350 MB</td><td>~450 MB</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="fases">
+  <h2>12. Fases y pendientes</h2>
+  <div class="tabla"><table>
+    <thead><tr><th>Fase</th><th>Contenido</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td>1 · Núcleo</td><td>Análisis, PDF digital, RapidOCR + Tesseract, votación, interfaz, salidas</td><td class="estado-ok">Hecha</td></tr>
+      <tr><td>2 · Estructura y fotos</td><td>Tablas, fotos, Excel · campos de facturas, orden por bloques</td><td class="estado-pend">Tablas y fotos hechas; resto pendiente</td></tr>
+      <tr><td>3 · Complemento</td><td>Manuscritos y fórmulas</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>4 · Inteligencia y pulido</td><td>Aprendizaje del enrutador, publicación, prueba en equipo mínimo, comparación con otras apps</td><td class="estado-pend">Pendiente</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Próximos pasos inmediatos</h3>
+  <ol class="pasos">
+    <li>Medir segundos por página en el equipo del usuario y optimizar (Tesseract solo en zonas dudosas, tablas solo donde haya).</li>
+    <li>Endurecimiento de seguridad (sección 13).</li>
+    <li>Integrar a <code>main</code> con pull request y publicar 0.2.0 en Releases.</li>
+    <li>Solicitar a sistemas la autorización del <code>.exe</code> (opcional).</li>
+  </ol>
+</section>
+
+<section id="hallazgos">
+  <h2>13. Seguridad: hallazgos de la revisión</h2>
+  <div class="tabla"><table>
+    <thead><tr><th>Prioridad</th><th>Hallazgo</th><th>Estado</th></tr></thead>
+    <tbody>
+      <tr><td class="estado-riesgo">Alta</td><td>El texto de los documentos queda sin cifrar en la caché (<code>datos\trabajos</code>) hasta 30 días, incluidos PDF con contraseña</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td class="estado-riesgo">Alta</td><td>El resultado de un PDF con contraseña se guarda sin contraseña</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td class="estado-riesgo">Alta</td><td>Un PDF malicioso conserva su código (JavaScript, adjuntos) en el PDF buscable</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td class="estado-riesgo">Alta</td><td>Archivos trampa que agotan la memoria (páginas gigantes)</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td class="estado-riesgo">Alta</td><td>Un documento con «=…» podía crear una fórmula en Excel</td><td class="estado-ok">Corregido</td></tr>
+      <tr><td>Media</td><td>Todo el análisis corre en el mismo proceso (sin aislamiento)</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>Media</td><td>Cadena de suministro: idiomas de Tesseract, instalador y librerías sin huella verificada</td><td class="estado-pend">Parcial (versiones con tope)</td></tr>
+      <tr><td>Media</td><td>Carga de DLL desde la carpeta del programa</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>Media</td><td>Telemetría local de ONNX Runtime activada por defecto</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>Baja</td><td>Nombres de archivo con HTML en Informes y avance</td><td class="estado-ok">Corregido</td></tr>
+      <tr><td>Baja</td><td>Imágenes temporales en <code>%TEMP%</code> para Tesseract</td><td class="estado-pend">Pendiente</td></tr>
+      <tr><td>Baja</td><td><code>.exe</code> sin firma digital ni huella publicada</td><td class="estado-pend">Pendiente</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="enlaces">
+  <h2>14. Enlaces</h2>
+  <ul>
+    <li>Repositorio (privado): <a href="https://github.com/ehchavezm-hub/16-eh-ocr">github.com/ehchavezm-hub/16-eh-ocr</a> — rama <code>claude/clever-babbage-km096c</code></li>
+    <li>Pizarra «cómo decide el OCR»: <a href="https://claude.ai/artifact/Qw2JeqB5V1Aucq1b9bhmVB">claude.ai/artifact/Qw2JeqB5V1Aucq1b9bhmVB</a></li>
+    <li>Mockup de la interfaz: <a href="https://claude.ai/artifact/TQooNLtLujGNeb8yBCX3A5">claude.ai/artifact/TQooNLtLujGNeb8yBCX3A5</a></li>
+    <li>Documento fuente: <code>ALCANCE.md</code> del repositorio (este HTML lo resume al 18/11/2026).</li>
+  </ul>
+</section>
+
+<footer>eh-ocr · Alcance v6 · versión de la app 0.2.0 · generado el 18/11/2026. Documento autónomo: funciona sin internet.</footer>
+</main>
+</body>
+</html>

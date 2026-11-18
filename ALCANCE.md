@@ -126,7 +126,7 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 4. CONTROL DE CONFIANZA
    Mide la confianza por palabra, por línea y por página. Si baja del umbral, RapidOCR
    reintenta con otras versiones de la imagen; luego Tesseract lee UNA vez la mejor versión,
-   solo en el idioma detectado, y se vota palabra a palabra.
+   solo en los idiomas presentes en la página, y se vota palabra a palabra.
 5. SALIDA
    TXT, Markdown, JSON con estructura (bloques, coordenadas, confianza, motor usado),
    PDF con texto buscable (pikepdf o pypdfium2), DOCX (python-docx) y CSV/XLSX para tablas
@@ -137,7 +137,7 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 |---|---|---|
 | PDF con texto digital | pdfplumber + pypdfium2 (sin OCR) | — |
 | Estructura: columnas, títulos, orden de lectura | Orden geométrico (detección de dos columnas) | RapidLayout (pendiente: orden por bloques) |
-| Texto impreso escaneado | RapidOCR PP-OCRv6 *medium* (ONNX) | Votación con Tesseract (tessdata_best, idioma detectado) |
+| Texto impreso escaneado | RapidOCR PP-OCRv6 *medium* (ONNX) | Votación con Tesseract (tessdata_best, idiomas presentes) |
 | Fotos de celular | Preproceso de perspectiva/iluminación + RapidOCR *medium* | Reintento con otro preproceso + votación |
 | Tablas | PDF digital: líneas del PDF (pdfplumber). Imagen: cuadrícula por bordes (OpenCV) | Zona por PP-DocLayout v3 + estructura por SLANet+, SLANet-en y alineación: gana la que no junta columnas |
 | Facturas, recibos, formularios | RapidLayout + RapidTable + reglas de extracción de campos | Votación |
@@ -157,11 +157,11 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 ## Inteligencia
 - **Primero lo barato:** una página digital nunca pasa por OCR.
 - **Votación por defecto** en toda página escaneada o fotografiada: RapidOCR y luego Tesseract
-  (una vez, en el idioma detectado), alineación palabra a palabra; donde no coinciden deciden el
+  (una vez, en los idiomas presentes), alineación palabra a palabra; donde no coinciden deciden el
   diccionario y la confianza, y la palabra queda marcada con ambas lecturas.
 - **Confianza medida:** umbrales por motor y tipo de contenido, calibrados con el corpus.
 - **Corrección final:** corrector ortográfico por idioma con diccionarios incluidos, y reglas
-  para confusiones típicas (rn↔m, 0↔O, 1↔l). Cada cambio queda marcado.
+  para confusiones típicas (rn↔m, 0↔O, 1↔l, ú↔ü). Cada cambio queda marcado.
 - **Aprendizaje local:** registra qué motor rindió mejor por tipo de documento y ajusta el
   enrutador. Todo queda en el equipo.
 
@@ -223,7 +223,7 @@ medium, Tesseract con castellano/inglés/alemán, PP-DocLayout v3, SLANet+ y SLA
   inglés; la precisión en cursiva desordenada será limitada y eh-ocr lo indicará.
 
 ## Fases y criterios de aceptación
-1. **Núcleo:** análisis + pdfplumber/pypdfium2 + RapidOCR *server* + Tesseract + votación +
+1. **Núcleo:** análisis + pdfplumber/pypdfium2 + RapidOCR *medium* + Tesseract + votación +
    interfaz + todas las salidas + aceleración DirectML. Criterio: escaneos y PDFs del corpus
    cumplen CER < 1 % sin internet en el equipo de referencia.
 2. **Estructura y fotos:** RapidLayout, RapidTable, preproceso de fotos, facturas y formularios.
