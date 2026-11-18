@@ -83,10 +83,10 @@ def test_informes_escapan_nombres_de_archivo(app, tmp_path):
     from eh_ocr.ui.trabajador import Estado
     from eh_ocr.ui.ventana import VentanaPrincipal
 
+    # Windows no admite < > en nombres de archivo: no hace falta crear el archivo para probarlo
     ruta = tmp_path / "<img src=x>contrato.pdf"
-    ruta.write_bytes(b"x")
     v = VentanaPrincipal()
-    v.agregar_archivos([ruta])
+    v.trabajador.agregar([ruta])
     v.trabajador.trabajos[0].estado = Estado.ERROR
     v.trabajador.trabajos[0].mensaje = "<b>falla</b>"
     v.informes.actualizar()
