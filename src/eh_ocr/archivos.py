@@ -8,8 +8,16 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from pathlib import Path
+
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ufffe\uffff]")
+
+
+def texto_xml(texto: str) -> str:
+    """Quita caracteres de control que Word y Excel no aceptan (vienen en algunos PDF)."""
+    return _CONTROL.sub("", texto)
 
 
 def escribir_atomico(destino: Path, contenido: bytes | str, codificacion: str = "utf-8") -> Path:

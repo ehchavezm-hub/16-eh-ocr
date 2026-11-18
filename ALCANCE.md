@@ -126,10 +126,10 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 | Situación detectada | Motor principal | Si no alcanza… |
 |---|---|---|
 | PDF con texto digital | pdfplumber + pypdfium2 (sin OCR) | — |
-| Estructura: columnas, títulos, orden de lectura | RapidLayout (ONNX) | Reglas geométricas de orden de lectura |
+| Estructura: columnas, títulos, orden de lectura | Orden geométrico (detección de dos columnas) | RapidLayout (pendiente: orden por bloques) |
 | Texto impreso escaneado | RapidOCR modelos *server* (ONNX) | Votación con Tesseract (tessdata_best) |
 | Fotos de celular | Preproceso de perspectiva/iluminación + RapidOCR *server* | Reintento con otro preproceso + votación |
-| Tablas | RapidTable (ONNX) | Reconstrucción por líneas/celdas + votación del texto de cada celda |
+| Tablas | PDF digital: líneas del PDF (pdfplumber). Imagen: cuadrícula por bordes (OpenCV) | Zona por PP-DocLayout v3 + estructura por SLANet+, SLANet-en y alineación: gana la que no junta columnas |
 | Facturas, recibos, formularios | RapidLayout + RapidTable + reglas de extracción de campos | Votación |
 | Escritura a mano *(complemento)* | TrOCR (ONNX, cuantizado) | Votación con RapidOCR; si persiste, marcar para revisión |
 | Fórmulas matemáticas *(complemento)* | Modelo LaTeX-OCR en ONNX (p. ej. RapidLaTeXOCR, licencia a verificar) | Reintento con otro preproceso |
@@ -140,7 +140,8 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 > un resultado inventado.
 >
 > Antes de programar se verifica versión, licencia (código y pesos) y precisión real de cada
-> motor. Si docling (con PyTorch) supera claramente a RapidLayout/RapidTable con el corpus del
+> motor. Descartados para tablas: TableStructureRec (solo Python < 3.13, suma SciPy/scikit-image),
+> UniTable y TableFormer/docling (requieren PyTorch). Si docling supera claramente a RapidLayout/RapidTable con el corpus del
 > usuario, se reevalúa su inclusión.
 
 ## Inteligencia
@@ -165,6 +166,8 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
 ## Interfaz (PySide6)
 - **Mockup aprobado:** https://claude.ai/artifact/TQooNLtLujGNeb8yBCX3A5 (privado) — 3 pantallas:
   Inicio, Procesando un lote y Revisión del resultado. Es la referencia visual de la interfaz.
+- Lista con casillas: lo arrastrado o elegido se LISTA (sin repetidos y sin volver a tomar los
+  resultados `…_ocr`); nada se procesa hasta pulsar «Procesar seleccionados».
 - Ventana principal: arrastrar y soltar archivos o carpetas completas. Sirve igual para
   documentos sueltos y para lotes grandes.
 - Vista previa lado a lado (imagen | texto) con zoom y las palabras de baja confianza
@@ -185,35 +188,17 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
   gratuitas existentes. Si no las supera, no se entrega.
 - Se miden CER, WER, precisión de tablas, tiempo por página y RAM máxima.
 
-## Tamaño estimado
-Estimación por componentes (a confirmar al construir los paquetes):
+## Tamaño (medido en la construcción de Windows)
 
-**Paquete esencial (`eh-ocr.zip`)**
+| Versión | ZIP a descargar | Descomprimido |
+|---|---|---|
+| 0.1.0 — núcleo (OCR medium + Tesseract) | 398 MB | 783 MB |
+| 0.2.0 — + tablas de alta precisión y Excel | 531 MB | 930 MB |
 
-| Componente | Descomprimido aprox. |
-|---|---|
-| Python 3.13 + librerías base | ~40 MB |
-| PySide6 (solo módulos necesarios) | ~100 MB |
-| numpy + OpenCV + Pillow | ~115 MB |
-| Lectores/escritores PDF, DOCX, XLSX | ~45 MB |
-| ONNX Runtime + DirectML | ~50 MB |
-| RapidOCR modelos *server* | ~150–250 MB |
-| Tesseract + castellano, inglés, alemán (best) | ~75 MB |
-| RapidLayout + RapidTable | ~50–150 MB |
-| Diccionarios ortográficos (3 idiomas) | ~15 MB |
-| **Total descomprimido** | **~550–750 MB** |
-| **ZIP a descargar** | **~400–550 MB** |
+Componentes principales: PySide6 (interfaz), OpenCV, ONNX Runtime DirectML, modelos PP-OCRv6
+medium, Tesseract con castellano/inglés/alemán, PP-DocLayout v3, SLANet+ y SLANet-en.
 
-**Complemento manuscritos y fórmulas**
-
-| Componente | Descomprimido aprox. |
-|---|---|
-| TrOCR manuscritos (ONNX cuantizado) | ~300–350 MB |
-| Fórmulas LaTeX-OCR (ONNX) | ~100 MB |
-| **Total descomprimido** | **~450 MB** |
-| **ZIP a descargar** | **~350 MB** |
-
-Sin PyTorch, PaddlePaddle ni OpenVINO se evitan ~1,4 GB adicionales.
+**Complemento manuscritos y fórmulas (Fase 3, pendiente):** estimado ~450 MB descomprimido.
 
 ## Riesgos y requisitos externos
 - **Laptop corporativa:** las políticas de TI pueden bloquear ejecutables no firmados aunque no
@@ -229,6 +214,8 @@ Sin PyTorch, PaddlePaddle ni OpenVINO se evitan ~1,4 GB adicionales.
    interfaz + todas las salidas + aceleración DirectML. Criterio: escaneos y PDFs del corpus
    cumplen CER < 1 % sin internet en el equipo de referencia.
 2. **Estructura y fotos:** RapidLayout, RapidTable, preproceso de fotos, facturas y formularios.
+   ✅ Tablas (con y sin bordes, celdas combinadas, Word/Excel) y fotos en 0.2.0.
+   Pendiente: extracción de campos de facturas/formularios y orden de lectura por bloques.
 3. **Complemento:** manuscritos (TrOCR) y fórmulas (LaTeX-OCR) como paquete aparte, con
    detección automática en `eh-ocr\complementos\`.
 4. **Inteligencia y pulido:** corrección final, aprendizaje del enrutador, `eh-ocr.zip` y el

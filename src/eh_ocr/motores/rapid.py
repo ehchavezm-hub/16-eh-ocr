@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import queue
 import threading
 
 import numpy as np
@@ -25,10 +26,18 @@ class MotorRapid(Motor):
     nombre = "RapidOCR"
 
     def __init__(self) -> None:
-        self._motor = None
+        self._motor = None  # primera instancia (y configuración elegida)
+        self._config: tuple[bool, bool] | None = None
         self._lock = threading.Lock()
+        self._libres: queue.Queue = queue.Queue()
+        self._creadas = 0
         self.acelerador = "CPU"
         self.modelos = "small"
+
+    @staticmethod
+    def instancias_maximas() -> int:
+        """Una instancia por página en paralelo (cada una ocupa ~0,5 GB con los modelos medium)."""
+        return hardware.detectar().paginas_en_paralelo
 
     def disponible(self) -> bool:
         try:
@@ -84,6 +93,9 @@ class MotorRapid(Motor):
                 try:
                     self._motor = RapidOCR(params=self._parametros(dml, medium))
                     self.acelerador = "DirectML" if dml else "CPU"
+                    self._config = (dml, medium)
+                    self._creadas = 1
+                    self._libres.put(self._motor)
                     break
                 except Exception as e:
                     log.warning("RapidOCR (DirectML=%s, medium=%s) falló: %s", dml, medium, e)
@@ -92,12 +104,35 @@ class MotorRapid(Motor):
                 raise MotorNoDisponible(f"RapidOCR no pudo iniciarse: {ultimo_error}")
             return self._motor
 
-    def reconocer(self, imagen: np.ndarray) -> list[Palabra]:
-        motor = self._cargar()
-        # ONNX Runtime es seguro entre hilos, pero RapidOCR guarda estado
-        # por llamada; se serializa para no mezclar resultados.
+    def _tomar(self):
+        """Una instancia libre; si no hay y queda cupo, se crea otra (páginas en paralelo)."""
+        self._cargar()
+        try:
+            return self._libres.get_nowait()
+        except queue.Empty:
+            pass
         with self._lock:
+            crear = self._creadas < self.instancias_maximas()
+            if crear:
+                self._creadas += 1
+        if crear:
+            try:
+                from rapidocr import RapidOCR
+
+                return RapidOCR(params=self._parametros(*self._config))
+            except Exception as e:  # sin memoria u otro problema: se comparte una existente
+                log.warning("No se pudo crear otra instancia de RapidOCR: %s", e)
+                with self._lock:
+                    self._creadas -= 1
+        return self._libres.get()
+
+    def reconocer(self, imagen: np.ndarray) -> list[Palabra]:
+        # Cada instancia de RapidOCR guarda estado por llamada: una página por instancia a la vez.
+        motor = self._tomar()
+        try:
             r = motor(imagen)
+        finally:
+            self._libres.put(motor)
         palabras: list[Palabra] = []
         if r is None or r.txts is None:
             return palabras

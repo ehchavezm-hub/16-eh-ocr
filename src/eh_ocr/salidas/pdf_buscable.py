@@ -21,11 +21,34 @@ from ..archivos import escribir_atomico
 from ..documento import Documento
 from ..modelo import EstadoPagina, ResultadoDocumento, ResultadoPagina, TipoPagina
 
+_FUENTE_UNICODE = "EhOcrDejaVu"
 FUENTE = "Helvetica"
 
 
+def _fuente() -> str:
+    """DejaVu Sans incluida (cubre €, —, comillas tipográficas…); Helvetica si faltara."""
+    global FUENTE
+    if FUENTE == _FUENTE_UNICODE:
+        return FUENTE
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    from .. import config
+
+    ruta = config.carpeta_recursos() / "fuentes" / "DejaVuSans.ttf"
+    if ruta.exists():
+        try:
+            pdfmetrics.registerFont(TTFont(_FUENTE_UNICODE, str(ruta)))
+            FUENTE = _FUENTE_UNICODE
+        except Exception:
+            pass
+    return FUENTE
+
+
 def _texto_seguro(t: str) -> str:
-    # Helvetica estándar cubre Latin-1 (á é í ó ú ñ ü ß ä ö …)
+    if _fuente() == _FUENTE_UNICODE:
+        return t
+    # Helvetica estándar solo cubre Latin-1
     return "".join(c if ord(c) < 256 else "?" for c in t)
 
 
@@ -35,7 +58,8 @@ def _dibujar_capa_texto(c: canvas.Canvas, r: ResultadoPagina, ancho_pt: float, a
         return
     sx = ancho_pt / perfil.ancho_px
     sy = alto_pt / perfil.alto_px
-    ancho_espacio = stringWidth(" ", FUENTE, 10) / 10
+    fuente = _fuente()
+    ancho_espacio = stringWidth(" ", fuente, 10) / 10
     for linea in r.lineas:
         palabras = linea.palabras
         for k, w in enumerate(palabras):
@@ -46,8 +70,8 @@ def _dibujar_capa_texto(c: canvas.Canvas, r: ResultadoPagina, ancho_pt: float, a
             tam = alto * 0.85
             t = c.beginText()
             t.setTextRenderMode(3)  # invisible
-            t.setFont(FUENTE, tam)
-            ancho_natural = stringWidth(texto, FUENTE, tam) or 1.0
+            t.setFont(fuente, tam)
+            ancho_natural = stringWidth(texto, fuente, tam) or 1.0
             t.setHorizScale(100.0 * ancho / ancho_natural)
             t.setTextOrigin(x0 * sx, alto_pt - y1 * sy + alto * 0.15)
             t.textOut(texto)
@@ -109,6 +133,36 @@ def _desde_pdf(resultado: ResultadoDocumento, origen: Path, destino: Path, contr
     escribir_atomico(destino, buf.getvalue())
 
 
+def _imagen_para_pdf(origen: Path, doc: Documento, indice: int) -> ImageReader:
+    """Imagen a incrustar en el PDF, lo más liviana posible sin perder legibilidad.
+
+    - JPEG de una página sin rotación EXIF: se incrusta tal cual (sin recomprimir).
+    - Escaneo en blanco y negro puro: se mantiene sin pérdida (ocupa muy poco).
+    - Resto: JPEG calidad 85.
+    """
+    if origen.suffix.lower() in (".jpg", ".jpeg") and len(doc) == 1:
+        with Image.open(origen) as im:
+            if im.getexif().get(0x0112, 1) == 1:
+                return ImageReader(str(origen))
+    arr, _ = doc.pagina(indice).imagen()
+    img = Image.fromarray(arr)
+    gris = img.convert("L")
+    extremos = gris.histogram()
+    if sum(extremos[1:255]) < 0.02 * gris.width * gris.height:  # casi solo blanco y negro
+        return ImageReader(gris.point(lambda v: 255 if v > 127 else 0, mode="1"))
+    buf = io.BytesIO()
+    (gris if _es_gris(img) else img).save(buf, format="JPEG", quality=85, optimize=True)
+    buf.seek(0)
+    return ImageReader(buf)
+
+
+def _es_gris(img: Image.Image) -> bool:
+    import numpy as np
+
+    a = np.asarray(img.resize((200, 200)), dtype=np.int16)
+    return int(np.abs(a[:, :, 0] - a[:, :, 1]).max()) < 12 and int(np.abs(a[:, :, 1] - a[:, :, 2]).max()) < 12
+
+
 def _desde_imagen(resultado: ResultadoDocumento, origen: Path, destino: Path) -> None:
     buf = io.BytesIO()
     c = canvas.Canvas(buf)
@@ -116,9 +170,7 @@ def _desde_imagen(resultado: ResultadoDocumento, origen: Path, destino: Path) ->
         for r in resultado.paginas:
             ancho_pt, alto_pt = r.perfil.ancho_pt, r.perfil.alto_pt
             c.setPageSize((ancho_pt, alto_pt))
-            arr, _ = doc.pagina(r.perfil.numero - 1).imagen()
-            img = Image.fromarray(arr)
-            c.drawImage(ImageReader(img), 0, 0, width=ancho_pt, height=alto_pt)
+            c.drawImage(_imagen_para_pdf(origen, doc, r.perfil.numero - 1), 0, 0, width=ancho_pt, height=alto_pt)
             if _necesita_capa(r):
                 _dibujar_capa_texto(c, r, ancho_pt, alto_pt)
             c.showPage()

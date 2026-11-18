@@ -9,14 +9,14 @@ from docx import Document
 from docx.enum.text import WD_BREAK, WD_COLOR_INDEX
 from docx.shared import Pt
 
-from ..archivos import escribir_atomico
+from ..archivos import escribir_atomico, texto_xml
 from ..modelo import EstadoPagina, ResultadoDocumento
 from ..tablas import Tabla
 
 
 def _agregar_palabras(par, palabras) -> None:
     for i, w in enumerate(palabras):
-        run = par.add_run(("" if i == 0 else " ") + w.texto)
+        run = par.add_run(("" if i == 0 else " ") + texto_xml(w.texto))
         if w.dudosa:
             run.font.highlight_color = WD_COLOR_INDEX.YELLOW
 
@@ -46,7 +46,7 @@ def escribir(r: ResultadoDocumento, destino: Path) -> None:
         if k > 0:
             doc.add_paragraph().add_run().add_break(WD_BREAK.PAGE)
         if p.estado == EstadoPagina.NO_PROCESADA:
-            run = doc.add_paragraph().add_run(f"[Página {p.perfil.numero}: no procesada — {p.mensaje}]")
+            run = doc.add_paragraph().add_run(texto_xml(f"[Página {p.perfil.numero}: no procesada — {p.mensaje}]"))
             run.italic = True
             continue
         palabras = p.palabras

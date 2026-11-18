@@ -15,6 +15,8 @@ de uso no comercial.** La verificación es automática en cada construcción
 | tessdata_best `spa`, `eng`, `deu` + `osd` | Modelos de Tesseract | Apache 2.0 |
 | ONNX Runtime / ONNX Runtime DirectML | Ejecución de modelos y aceleración por gráfica | MIT |
 | pyspellchecker (diccionarios es/en/de) | Corrector de confusiones típicas | MIT |
+| rapid-layout + PP-DocLayout v3 / layout CDLA (ONNX) | Zonas de página: dónde hay tablas | Apache 2.0 |
+| rapid-table + SLANet+ / SLANet-en (ONNX) | Estructura de tablas | Apache 2.0 |
 
 ## Documentos y salidas
 
@@ -26,6 +28,7 @@ de uso no comercial.** La verificación es automática en cada construcción
 | reportlab | Capa de texto invisible del PDF | BSD |
 | python-docx | Salida Word | MIT |
 | openpyxl | Salida Excel | MIT |
+| DejaVu Sans (fuente) | Capa de texto invisible del PDF (€, —, comillas…) | Licencia libre de Bitstream Vera / DejaVu (texto en `recursos/fuentes/LICENCIA-DejaVu.txt`) |
 | OpenCV (headless) | Preproceso de imágenes | Apache 2.0 |
 | Pillow | Imágenes | MIT-CMU |
 | NumPy | Cálculo | BSD-3 |
@@ -47,4 +50,5 @@ herramientas de entrenamiento), y el runtime de GCC con su excepción de enlace.
 ## Excluidos a propósito
 
 PyMuPDF (AGPL), marker (GPL), Surya (GPL), nougat (CC-BY-NC), OCRmyPDF (depende de
-Ghostscript, AGPL), Kraken (fuera de alcance), HEIC (sus librerías pueden incluir GPL).
+Ghostscript, AGPL), Kraken (fuera de alcance), HEIC (sus librerías pueden incluir GPL),
+TableStructureRec (no admite Python 3.13), UniTable y TableFormer/docling (requieren PyTorch).

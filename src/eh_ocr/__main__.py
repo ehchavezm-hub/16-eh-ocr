@@ -108,6 +108,12 @@ def _main() -> int:
         _configurar_registro()
     except OSError:
         pass
+    try:
+        from .pipeline import limpiar_cache
+
+        limpiar_cache(30)  # datos temporales de trabajos sin uso hace más de 30 días
+    except Exception:
+        logging.getLogger(__name__).warning("No se pudo limpiar la caché", exc_info=True)
 
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication

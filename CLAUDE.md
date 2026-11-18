@@ -45,4 +45,7 @@ git push origin main
 - rapid-table / rapid-layout: SIEMPRE `pip install --no-deps` (requirements-tablas.txt); con
   dependencias instalan opencv-python completo (+200 MB) y onnxruntime CPU (choca con DirectML).
 - Tablas: las celdas guardan índices a las palabras de la página (no copias), para que las
-  correcciones de la revisión lleguen a Word/Excel.
+  correcciones de la revisión lleguen a Word/Excel. Toda tabla pasa por `tablas.normalizar`
+  (sin celdas superpuestas). Entre varios métodos gana el que no junta columnas.
+- Excel: escribir siempre con `_poner` (un texto con «=» nunca es fórmula). Word/Excel: `texto_xml`.
+- Documentos: nada se carga entero en memoria (PDF y TIFF página por página, PDFium bajo candado).

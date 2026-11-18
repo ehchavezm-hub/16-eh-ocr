@@ -74,7 +74,7 @@ class VentanaPrincipal(QMainWindow):
         self.botones = {}
         for clave, nombre, w in (
             ("inicio", "⤓  Procesar", self.inicio),
-            ("cola", "☰  Cola y lotes", self.cola),
+            ("cola", "☰  Lista", self.cola),
             ("revision", "⌕  Revisar", self.revision),
             ("informes", "▤  Informes", self.informes),
         ):
@@ -130,6 +130,9 @@ class VentanaPrincipal(QMainWindow):
         from ..pipeline import Motores
 
         Motores.obtener().rapid.disponible()  # carga los modelos una vez
+        from ..tablas import ModelosTablas
+
+        ModelosTablas.obtener().estado
         self._actualizar_equipo()
 
     def _actualizar_equipo(self, cargando: bool = False) -> None:
@@ -145,10 +148,23 @@ class VentanaPrincipal(QMainWindow):
                 f"● Tesseract: {'listo' if m.tesseract.disponible() else 'no disponible'}"
             )
         complemento = config.carpeta_complementos().exists() and any(config.carpeta_complementos().iterdir())
+        if cargando:
+            tablas_txt = "Tablas: cargando…"
+        else:
+            from ..tablas import ModelosTablas
+
+            et = ModelosTablas.obtener().estado
+            if et["layout_preciso"] and et["estructuras"] >= 2:
+                tablas_txt = "Tablas: alta precisión"
+            elif et["layout"]:
+                tablas_txt = "Tablas: básica (faltan modelos precisos)"
+            else:
+                tablas_txt = "Tablas: solo con bordes"
         self.lbl_equipo.setText(
             f"● Sin internet: {'correcto' if red_bloqueada() else 'no verificado'}<br>"
             f"● Acelerador: {m.rapid.acelerador if not cargando else eq.acelerador}<br>"
             f"{motores}<br>"
+            f"● {tablas_txt}<br>"
             f"● Manuscritos y fórmulas: {'instalado' if complemento else 'complemento no instalado'}<br>"
             f"<br>{eq.descripcion}<br>v{__version__}"
         )

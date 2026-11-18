@@ -136,6 +136,25 @@ def guardar_cache(ruta: Path, r: ResultadoPagina) -> None:
     escribir_atomico(_ruta_cache(ruta, r.perfil.numero), json.dumps(r.a_dict(), ensure_ascii=False))
 
 
+def limpiar_cache(dias: int = 30) -> int:
+    """Borra los trabajos reanudables sin uso hace más de `dias` días. Devuelve cuántos."""
+    import shutil
+
+    base = config.carpeta_datos() / "trabajos"
+    if not base.exists():
+        return 0
+    limite = time.time() - dias * 86400
+    borrados = 0
+    for d in base.iterdir():
+        try:
+            if d.is_dir() and max((f.stat().st_mtime for f in d.iterdir()), default=d.stat().st_mtime) < limite:
+                shutil.rmtree(d)
+                borrados += 1
+        except OSError:
+            continue
+    return borrados
+
+
 def borrar_cache_pagina(ruta: Path, numero: int) -> None:
     p = _ruta_cache(ruta, numero)
     if p.exists():
@@ -164,6 +183,27 @@ def perfilar(pagina: Pagina) -> PerfilPagina:
         alto_pt=alto_pt,
         caracteres_digitales=chars,
     )
+
+
+def texto_digital_legible(palabras: list) -> bool:
+    """¿El texto digital del PDF es legible? Detecta fuentes mal codificadas.
+
+    Señales de basura: marcas «(cid:NN)», caracteres de reemplazo «�», o casi ninguna
+    palabra reconocible en castellano, inglés o alemán.
+    """
+    if not palabras:
+        return True
+    textos = [p.texto for p in palabras]
+    total = len(textos)
+    raras = sum(1 for t in textos if "(cid:" in t or "\ufffd" in t)
+    if raras / total > 0.05:
+        return False
+    largas = [t for t in textos if sum(c.isalpha() for c in t) >= 3]
+    if len(largas) < 30:
+        return True  # muy poco texto para juzgar
+    dic = diccionarios()
+    conocidas = sum(1 for t in largas if dic.conoce(t))
+    return conocidas / len(largas) >= 0.2
 
 
 def preparar_imagen(pagina: Pagina, perfil: PerfilPagina, motores: Motores) -> preproceso.ImagenTrabajo:
@@ -235,17 +275,28 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
     inicio = time.perf_counter()
     perfil = perfilar(pagina)
 
+    escala = config.DPI_RENDER / 72
+    palabras = lector_digital.palabras(pagina.indice, escala) if (
+        perfil.tipo == TipoPagina.DIGITAL and lector_digital is not None
+    ) else []
+    if palabras and not texto_digital_legible(palabras):
+        # Fuentes mal codificadas: el PDF "tiene texto" pero sale basura. Nunca se entrega: se usa OCR.
+        perfil.tipo = TipoPagina.ESCANEO
+        aviso_ilegible = "texto digital ilegible: se leyó con OCR"
+    else:
+        aviso_ilegible = ""
     if perfil.tipo == TipoPagina.DIGITAL and lector_digital is not None:
-        escala = config.DPI_RENDER / 72
-        palabras = lector_digital.palabras(pagina.indice, escala)
         lineas = agrupar_en_lineas(palabras)
         try:
             todas = [p for l in lineas for p in l.palabras]
             con_lineas = lector_digital.tablas(pagina.indice, escala)
             sin_lineas = []
             if len(todas) >= 8:  # tablas sin líneas: hace falta mirar la página como imagen
-                imagen, _ = pagina.imagen(config.DPI_RENDER)
-                sin_lineas = tablas.detectar_sin_bordes_digital(imagen, todas, con_lineas)
+                dpi_zonas = 150  # suficiente para encontrar zonas; el texto es el exacto del PDF
+                imagen, _ = pagina.imagen(dpi_zonas)
+                sin_lineas = tablas.detectar_sin_bordes_digital(
+                    imagen, todas, con_lineas, escala=config.DPI_RENDER / dpi_zonas
+                )
             tablas_pag = tablas.finalizar(con_lineas + sin_lineas, todas)
         except Exception:
             log.exception("Tablas del PDF digital: se continúa sin ellas")
@@ -289,7 +340,7 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
         confianza_media=round(_confianza_media(mejor_lineas), 4),
         segundos=round(time.perf_counter() - inicio, 2),
         idioma=dic.detectar_idioma(palabras),
-        mensaje="; ".join(base.pasos),
+        mensaje="; ".join(([aviso_ilegible] if aviso_ilegible else []) + base.pasos),
         tablas=tablas_pag,
     )
 
@@ -348,7 +399,11 @@ def procesar_documento(
     inicio = time.perf_counter()
     limite = tiempo_limite_pagina()
 
-    with Documento(ruta, contrasena) as doc:
+    doc = Documento(ruta, contrasena)
+    lector = None
+    colgadas = 0  # páginas que superaron el tiempo límite y siguen ocupando un hilo
+    ex = ThreadPoolExecutor(max_workers=hardware.detectar().paginas_en_paralelo + 1)
+    try:
         total = len(doc)
         lector = LectorPdfDigital(ruta, contrasena) if doc.es_pdf else None
         if paginas:
@@ -356,52 +411,57 @@ def procesar_documento(
                 borrar_cache_pagina(ruta, n)
         resultados: dict[int, ResultadoPagina] = {}
         paralelas = hardware.detectar().paginas_en_paralelo
-        try:
-            with ThreadPoolExecutor(max_workers=paralelas) as ex:
-                pendientes = list(range(total))
-                while pendientes:
-                    control.esperar_si_pausado()
-                    lote, pendientes = pendientes[:paralelas], pendientes[paralelas:]
-                    futuros = {}
-                    for i in lote:
-                        cache = cargar_cache(ruta, i + 1)
-                        if cache is not None:
-                            resultados[i] = cache
-                            continue
-                        futuros[i] = (ex.submit(procesar_pagina, doc.pagina(i), motores, lector), time.perf_counter())
-                    for i, (fut, t0) in futuros.items():
-                        restante = max(1.0, limite - (time.perf_counter() - t0))
-                        try:
-                            r = fut.result(timeout=restante)
-                        except FuturoTimeout:
-                            r = _pagina_no_procesada(doc.pagina(i), "Tiempo límite superado", limite)
-                        except Exception as e:  # el motor falló: no se cierra la app
-                            log.exception("Error en página %s", i + 1)
-                            r = _pagina_no_procesada(doc.pagina(i), f"Error: {e}", time.perf_counter() - t0)
-                        resultados[i] = r
-                        if r.estado != EstadoPagina.NO_PROCESADA:
-                            guardar_cache(ruta, r)
-                    for i in lote:
-                        r = resultados[i]
-                        if al_progresar:
-                            al_progresar(
-                                Progreso(
-                                    ruta,
-                                    i + 1,
-                                    total,
-                                    {
-                                        "tipo": r.perfil.tipo.value,
-                                        "motores": r.motores,
-                                        "confianza": r.confianza_media,
-                                        "pasos": r.mensaje,
-                                        "estado": r.estado.value,
-                                        "acelerador": motores.rapid.acelerador,
-                                    },
-                                )
-                            )
-        finally:
+        pendientes = list(range(total))
+        while pendientes:
+            control.esperar_si_pausado()
+            lote, pendientes = pendientes[:paralelas], pendientes[paralelas:]
+            futuros = {}
+            for i in lote:
+                cache = cargar_cache(ruta, i + 1)
+                if cache is not None:
+                    resultados[i] = cache
+                    continue
+                futuros[i] = (ex.submit(procesar_pagina, doc.pagina(i), motores, lector), time.perf_counter())
+            for i, (fut, t0) in futuros.items():
+                restante = max(1.0, limite - (time.perf_counter() - t0))
+                try:
+                    r = fut.result(timeout=restante)
+                except FuturoTimeout:
+                    colgadas += 1
+                    log.warning("Página %s superó el tiempo límite (%.0f s)", i + 1, limite)
+                    r = _pagina_no_procesada(doc.pagina(i), "Tiempo límite superado", limite)
+                except Exception as e:  # el motor falló: no se cierra la app
+                    log.exception("Error en página %s", i + 1)
+                    r = _pagina_no_procesada(doc.pagina(i), f"Error: {e}", time.perf_counter() - t0)
+                resultados[i] = r
+                if r.estado != EstadoPagina.NO_PROCESADA:
+                    guardar_cache(ruta, r)
+            for i in lote:
+                r = resultados[i]
+                if al_progresar:
+                    al_progresar(
+                        Progreso(
+                            ruta,
+                            i + 1,
+                            total,
+                            {
+                                "tipo": r.perfil.tipo.value,
+                                "motores": r.motores,
+                                "confianza": r.confianza_media,
+                                "pasos": r.mensaje,
+                                "estado": r.estado.value,
+                                "acelerador": motores.rapid.acelerador,
+                            },
+                        )
+                    )
+    finally:
+        # Con una página colgada NO se espera ni se cierra el documento: ese hilo aún podría
+        # estar leyéndolo. Se libera al cerrar eh-ocr. Sin páginas colgadas, cierre normal.
+        ex.shutdown(wait=colgadas == 0, cancel_futures=True)
+        if colgadas == 0:
             if lector is not None:
                 lector.cerrar()
+            doc.cerrar()
 
     return ResultadoDocumento(
         origen=str(ruta),

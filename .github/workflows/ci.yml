@@ -14,8 +14,8 @@ jobs:
   pruebas:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Tesseract y librerías de Qt
@@ -44,8 +44,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.13"
       - name: Tesseract (binarios para incluir en el paquete)
@@ -85,7 +85,7 @@ jobs:
           $mb = [math]::Round((Get-Item eh-ocr.zip).Length / 1MB, 1)
           $dir = [math]::Round((Get-ChildItem dist\eh-ocr -Recurse | Measure-Object Length -Sum).Sum / 1MB, 1)
           "ZIP: $mb MB · descomprimido: $dir MB" | Tee-Object -FilePath tamano.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: eh-ocr-windows
           path: |

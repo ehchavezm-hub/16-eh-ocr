@@ -480,18 +480,30 @@ def _mejor_candidato(candidatos: list[Tabla], palabras: list[Palabra]) -> Tabla 
     return mejor
 
 
-def detectar_sin_bordes_digital(imagen: np.ndarray, palabras: list[Palabra], ya: list[Tabla]) -> list[Tabla]:
+def _escalar(t: Tabla, f: float) -> Tabla:
+    t.caja = tuple(v * f for v in t.caja)
+    for c in t.celdas:
+        c.caja = tuple(v * f for v in c.caja)
+    return t
+
+
+def detectar_sin_bordes_digital(
+    imagen: np.ndarray, palabras: list[Palabra], ya: list[Tabla], escala: float = 1.0
+) -> list[Tabla]:
     """PDF digital: tablas SIN líneas (pdfplumber no las ve). Zonas por el detector,
-    texto exacto del PDF. Se omiten las zonas ya cubiertas por tablas con líneas."""
+    texto exacto del PDF. Se omiten las zonas ya cubiertas por tablas con líneas.
+
+    `escala`: de la imagen analizada a las coordenadas de las palabras (p. ej. 150 → 300 ppp = 2).
+    """
     modelos = ModelosTablas.obtener()
     salida = []
-    for region in modelos.regiones(imagen):
+    for region_img in modelos.regiones(imagen):
+        region = tuple(v * escala for v in region_img)
         if any(_iou(region, t.caja) > 0.3 for t in ya):
             continue
-        candidatos = [
-            c for c in [*modelos.estructuras(imagen, region), tabla_por_alineacion(region, palabras)]
-            if c is not None and c.n_cols >= 2 and c.n_filas >= 2 and len(c.celdas) >= 4
-        ]
+        candidatos = [_escalar(c, escala) for c in modelos.estructuras(imagen, region_img)]
+        candidatos.append(tabla_por_alineacion(region, palabras))
+        candidatos = [c for c in candidatos if c is not None and c.n_cols >= 2 and c.n_filas >= 2 and len(c.celdas) >= 4]
         t = _mejor_candidato(candidatos, palabras)
         if t is not None:
             salida.append(t)

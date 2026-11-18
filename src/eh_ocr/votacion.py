@@ -39,7 +39,70 @@ def agrupar_en_lineas(palabras: list[Palabra]) -> list[Linea]:
             lineas.append([p])
     resultado = [Linea(sorted(l, key=lambda w: w.caja[0])) for l in lineas]
     resultado.sort(key=lambda l: (l.caja[1], l.caja[0]))
-    return _separar_huecos(resultado)
+    return ordenar_por_columnas(_separar_huecos(resultado))
+
+
+def ordenar_por_columnas(lineas: list[Linea]) -> list[Linea]:
+    """Orden de lectura en páginas a dos columnas: primero toda la columna izquierda, luego la
+    derecha. Los títulos que cruzan ambas columnas cortan la página en tramos.
+
+    Solo actúa si hay un «canal» vertical vacío claro y las líneas de cada lado son texto
+    corrido (largas); así no desordena tablas (celdas cortas alineadas por fila).
+    """
+    if len(lineas) < 10:
+        return lineas
+    x0 = min(l.caja[0] for l in lineas)
+    x1 = max(l.caja[2] for l in lineas)
+    ancho = x1 - x0
+    if ancho <= 0:
+        return lineas
+    bins = 200
+    cruces = [0] * bins
+    for l in lineas:
+        a = int((l.caja[0] - x0) / ancho * (bins - 1))
+        b = int((l.caja[2] - x0) / ancho * (bins - 1))
+        for k in range(a, b + 1):
+            cruces[k] += 1
+    # canal: tramo en el 30-70 % central cruzado por ≤ 8 % de las líneas, de al menos 1,5 % de ancho
+    limite = max(1, int(len(lineas) * 0.08))
+    mejor = None
+    k = int(bins * 0.3)
+    while k < int(bins * 0.7):
+        if cruces[k] <= limite:
+            inicio = k
+            while k < int(bins * 0.7) and cruces[k] <= limite:
+                k += 1
+            if k - inicio >= bins * 0.015 and (mejor is None or k - inicio > mejor[1] - mejor[0]):
+                mejor = (inicio, k)
+        k += 1
+    if mejor is None:
+        return lineas
+    canal = x0 + (mejor[0] + mejor[1]) / 2 / (bins - 1) * ancho
+    izq = [l for l in lineas if l.caja[2] <= canal]
+    der = [l for l in lineas if l.caja[0] >= canal]
+    if len(izq) < 5 or len(der) < 5:
+        return lineas
+    # texto corrido: las líneas ocupan buena parte de su columna (en tablas, las celdas son cortas)
+    def mediana(v: list[float]) -> float:
+        v = sorted(v)
+        return v[len(v) // 2]
+
+    if mediana([l.caja[2] - l.caja[0] for l in izq]) < 0.55 * (canal - x0):
+        return lineas
+    if mediana([l.caja[2] - l.caja[0] for l in der]) < 0.55 * (x1 - canal):
+        return lineas
+    salida: list[Linea] = []
+    tramo_izq: list[Linea] = []
+    tramo_der: list[Linea] = []
+    for l in sorted(lineas, key=lambda l: l.caja[1]):
+        if l.caja[2] <= canal:
+            tramo_izq.append(l)
+        elif l.caja[0] >= canal:
+            tramo_der.append(l)
+        else:  # cruza las dos columnas: cierra el tramo
+            salida += tramo_izq + tramo_der + [l]
+            tramo_izq, tramo_der = [], []
+    return salida + tramo_izq + tramo_der
 
 
 def _separar_huecos(lineas: list[Linea]) -> list[Linea]:

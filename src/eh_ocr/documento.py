@@ -6,6 +6,7 @@ nunca se carga entero en memoria.
 
 from __future__ import annotations
 
+import re
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,8 @@ EXT_HEIC = {".heic", ".heif"}
 
 # PDFium no es seguro entre hilos: todo acceso pasa por este candado.
 _PDFIUM = threading.RLock()
+# Una imagen multipágina se recorre con seek(): también bajo candado.
+_IMAGEN = threading.RLock()
 
 # Si una imagen no indica su resolución, se asume que ocupa un ancho A4.
 ANCHO_A4_PULGADAS = 8.27
@@ -48,14 +51,30 @@ def es_admitido(ruta: Path) -> bool:
     return Path(ruta).suffix.lower() in EXT_ADMITIDAS
 
 
+_RESULTADO = re.compile(r"_ocr( \(\d+\))?$", re.IGNORECASE)
+
+
+def es_resultado_de_eh_ocr(ruta: Path) -> bool:
+    """«contrato_ocr.pdf», «contrato_ocr (2).pdf»: salidas de eh-ocr, no se vuelven a procesar."""
+    return bool(_RESULTADO.search(Path(ruta).stem))
+
+
 def listar_archivos(rutas: list[Path]) -> list[Path]:
-    """Expande carpetas (recursivo) y conserva el orden; incluye HEIC para avisar."""
+    """Expande carpetas (recursivo) y conserva el orden; incluye HEIC para avisar.
+
+    Al expandir una carpeta se omiten los resultados de eh-ocr (…_ocr.pdf). Un archivo
+    elegido directamente se respeta aunque lo parezca.
+    """
     salida: list[Path] = []
     for ruta in rutas:
         ruta = Path(ruta)
         if ruta.is_dir():
             for hijo in sorted(ruta.rglob("*")):
-                if hijo.is_file() and hijo.suffix.lower() in EXT_ADMITIDAS | EXT_HEIC:
+                if (
+                    hijo.is_file()
+                    and hijo.suffix.lower() in EXT_ADMITIDAS | EXT_HEIC
+                    and not es_resultado_de_eh_ocr(hijo)
+                ):
                     salida.append(hijo)
         elif ruta.is_file():
             salida.append(ruta)
@@ -96,7 +115,9 @@ class Documento:
         ext = self.ruta.suffix.lower()
         self.contrasena = contrasena
         self._pdf: pdfium.PdfDocument | None = None
-        self._frames: list[Image.Image] = []
+        self._img: Image.Image | None = None
+        self._n_frames = 0
+        self._dpi_original = None
         self._es_foto = False
         if ext in EXT_HEIC:
             raise FormatoNoAdmitido(
@@ -113,14 +134,12 @@ class Documento:
         elif ext in EXT_IMAGEN:
             self.es_pdf = False
             try:
-                img = Image.open(self.ruta)
-                exif = img.getexif()
+                self._img = Image.open(self.ruta)
+                exif = self._img.getexif()
                 # Marca/modelo de cámara => foto de celular
                 self._es_foto = bool(exif.get(0x010F) or exif.get(0x0110))
-                for frame in ImageSequence.Iterator(img):
-                    f = ImageOps.exif_transpose(frame.copy()) or frame.copy()
-                    f.info["dpi"] = img.info.get("dpi")
-                    self._frames.append(f)
+                self._n_frames = getattr(self._img, "n_frames", 1)
+                self._dpi_original = self._img.info.get("dpi")
             except Exception as e:
                 raise ErrorDocumento(f"No se pudo abrir la imagen (archivo dañado o formato raro): {e}") from e
         else:
@@ -128,7 +147,7 @@ class Documento:
 
     # --- API pública ---------------------------------------------------
     def __len__(self) -> int:
-        return len(self._pdf) if self._pdf is not None else len(self._frames)
+        return len(self._pdf) if self._pdf is not None else self._n_frames
 
     def paginas(self):
         for i in range(len(self)):
@@ -142,7 +161,10 @@ class Documento:
             with _PDFIUM:
                 self._pdf.close()
             self._pdf = None
-        self._frames.clear()
+        if self._img is not None:
+            with _IMAGEN:
+                self._img.close()
+            self._img = None
 
     def __enter__(self):
         return self
@@ -151,20 +173,32 @@ class Documento:
         self.cerrar()
 
     # --- internos (todo acceso a PDFium bajo candado) --------------------
-    def _dpi_imagen(self, frame: Image.Image) -> float:
-        dpi = frame.info.get("dpi")
+    def _dpi_imagen(self, ancho_px: int) -> float:
+        dpi = self._dpi_original
         if dpi and dpi[0] and float(dpi[0]) > 30:
             return float(dpi[0])
-        return frame.width / ANCHO_A4_PULGADAS
+        return ancho_px / ANCHO_A4_PULGADAS
+
+    def _cuadro(self, i: int) -> Image.Image:
+        """Página i de la imagen (lectura perezosa: solo esa página en memoria)."""
+        with _IMAGEN:
+            self._img.seek(i)
+            cuadro = self._img.copy()
+        return ImageOps.exif_transpose(cuadro) or cuadro
 
     def _tamano_pt(self, i: int) -> tuple[float, float]:
         if self._pdf is not None:
             with _PDFIUM:
                 w, h = self._pdf[i].get_size()
             return float(w), float(h)
-        f = self._frames[i]
-        dpi = self._dpi_imagen(f)
-        return f.width * 72 / dpi, f.height * 72 / dpi
+        with _IMAGEN:
+            self._img.seek(i)
+            w, h = self._img.size
+            orientacion = self._img.getexif().get(0x0112, 1)
+        if orientacion in (5, 6, 7, 8):  # rotada 90°: ancho y alto se invierten
+            w, h = h, w
+        dpi = self._dpi_imagen(w)
+        return w * 72 / dpi, h * 72 / dpi
 
     def _imagen(self, i: int, dpi: int) -> tuple[np.ndarray, float]:
         if self._pdf is not None:
@@ -172,8 +206,8 @@ class Documento:
                 bmp = self._pdf[i].render(scale=dpi / 72)
                 img = bmp.to_pil().convert("RGB")
             return np.asarray(img), float(dpi)
-        f = self._frames[i]
-        return np.asarray(f.convert("RGB")), self._dpi_imagen(f)
+        cuadro = self._cuadro(i)
+        return np.asarray(cuadro.convert("RGB")), self._dpi_imagen(cuadro.width)
 
     def _caracteres(self, i: int) -> int:
         if self._pdf is None:

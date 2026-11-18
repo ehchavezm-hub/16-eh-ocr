@@ -16,7 +16,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from ..archivos import escribir_atomico
+from ..archivos import escribir_atomico, texto_xml
 from ..modelo import EstadoPagina, Linea, Palabra, ResultadoDocumento, ResultadoPagina
 from ..tablas import celda_dudosa, texto_celda
 
@@ -53,6 +53,7 @@ def _columnas(segmentos: list[list[Palabra]], ancho_pagina: float) -> list[float
 
 def _valor(texto: str):
     """Convierte números escritos a la peruana/española (1.234,56) o inglesa (1,234.56)."""
+    texto = texto_xml(texto)
     t = texto.strip()
     if not _NUMERO.match(t) or not any(c.isdigit() for c in t):
         return t
@@ -75,7 +76,7 @@ def _hoja_con_tablas(hoja, p: ResultadoPagina) -> None:
     anchos: dict[int, int] = {}
     for tipo, bloque in p.bloques():
         if tipo == "linea":
-            celda = hoja.cell(row=fila, column=1, value=bloque.texto)
+            celda = _poner(hoja, fila, 1, _valor(bloque.texto))
             if any(w.dudosa for w in bloque.palabras):
                 celda.fill = AMARILLO
             fila += 1
@@ -85,7 +86,7 @@ def _hoja_con_tablas(hoja, p: ResultadoPagina) -> None:
             texto = texto_celda(c, palabras)
             r0, c0 = fila + c.fila, 1 + c.col
             r1, c1 = r0 + c.filas - 1, c0 + c.cols - 1
-            celda = hoja.cell(row=r0, column=c0, value=_valor(texto))
+            celda = _poner(hoja, r0, c0, _valor(texto))
             celda.alignment = Alignment(vertical="top", wrap_text=True)
             if celda_dudosa(c, palabras):
                 celda.fill = AMARILLO
@@ -114,7 +115,7 @@ def _hoja_por_alineacion(hoja, p: ResultadoPagina) -> None:
                 col += 1
             usadas.add(col)
             texto = " ".join(w.texto for w in seg)
-            celda = hoja.cell(row=i, column=col, value=_valor(texto))
+            celda = _poner(hoja, i, col, _valor(texto))
             celda.alignment = Alignment(vertical="top")
             if any(w.dudosa for w in seg):
                 celda.fill = AMARILLO
@@ -123,13 +124,22 @@ def _hoja_por_alineacion(hoja, p: ResultadoPagina) -> None:
         hoja.column_dimensions[get_column_letter(col)].width = min(max(ancho + 2, 8), 60)
 
 
+def _poner(hoja, fila: int, col: int, valor):
+    """Escribe una celda. Un texto que empieza con «=» queda como TEXTO, nunca como fórmula:
+    el contenido de un documento no debe ejecutarse en Excel."""
+    celda = hoja.cell(row=fila, column=col, value=valor)
+    if isinstance(valor, str) and valor.startswith("="):
+        celda.data_type = "s"
+    return celda
+
+
 def escribir(r: ResultadoDocumento, destino: Path) -> None:
     libro = Workbook()
     libro.remove(libro.active)
     for p in r.paginas:
         hoja = libro.create_sheet(f"Página {p.perfil.numero}")
         if p.estado == EstadoPagina.NO_PROCESADA or not p.lineas:
-            hoja["A1"] = f"Página no procesada: {p.mensaje}" if p.mensaje else "Página sin texto"
+            hoja["A1"] = texto_xml(f"Página no procesada: {p.mensaje}") if p.mensaje else "Página sin texto"
             hoja["A1"].font = Font(italic=True)
         elif p.tablas:
             _hoja_con_tablas(hoja, p)

@@ -36,7 +36,8 @@ Una página con texto digital nunca pasa por OCR: sale exacta e instantánea.
 ## Estado
 
 - **0.1.0 — Fase 1 (núcleo)**: PDF digital, escaneos, fotos, votación, revisión, salidas, paquete portable.
-- **0.2.0 — Tablas**: tablas con y sin bordes, celdas combinadas, salida Excel.
+- **0.2.0 — Tablas**: tablas con y sin bordes (alta precisión), celdas combinadas, salida Excel,
+  lista con casillas, dos columnas, PDF más liviano. ZIP 531 MB.
 - Próximas: complemento de manuscritos y fórmulas, aprendizaje del enrutador.
 
 ## Desarrollo
@@ -49,6 +50,12 @@ pytest -v
 
 (Las librerías de tablas se instalan sin dependencias porque pedirían versiones de
 ONNX Runtime y OpenCV que chocan con las que usa eh-ocr.)
+
+Para probar con la misma precisión que el `.exe` (descarga una sola vez los modelos):
+
+```bash
+python scripts/preparar_build.py --solo-modelos
+```
 
 - Probar con tus documentos: ver `scripts/evaluar_corpus.py` (carpeta `corpus/`, nunca se sube).
 - Construir el paquete de Windows: se hace automáticamente en GitHub Actions al crear un

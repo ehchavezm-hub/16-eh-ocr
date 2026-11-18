@@ -2,6 +2,24 @@
 
 ## 0.2.0 — Tablas y Excel
 
+Auditoría (no conformidades corregidas):
+- Página que supera el tiempo límite: ya no cuelga ni hace caer la app al terminar el documento.
+- Carpeta de datos sin permiso de escritura: se usa la carpeta local del usuario.
+- Caracteres de control de algunos PDF ya no rompen Word ni Excel.
+- Excel: un texto que empieza con «=» queda como texto, nunca como fórmula.
+- PDF digital con texto ilegible (fuentes mal codificadas): se detecta y se lee con OCR.
+- Al expandir carpetas no se vuelven a procesar los resultados `…_ocr`.
+- PDF buscable con fuente Unicode incluida: €, —, comillas tipográficas.
+- TIFF multipágina: se lee página por página, sin cargarlo entero en memoria.
+
+Mejoras:
+- Varias páginas en paralelo de verdad (una instancia de RapidOCR por página en curso).
+- Orden de lectura en documentos a dos columnas.
+- PDF buscable de imágenes mucho más liviano (JPEG; blanco y negro sin pérdida).
+- Limpieza automática de datos temporales con más de 30 días.
+- Tablas sin líneas en PDF digital: análisis a 150 ppp (más rápido).
+- «Estado del equipo» muestra el nivel de tablas; el menú «Lista» coincide con la pantalla.
+
 - Detección de tablas por capas:
   - PDF digital: tablas del propio PDF (pdfplumber), exactas.
   - Escaneos y fotos con bordes: cuadrícula por líneas (OpenCV), con celdas combinadas.
