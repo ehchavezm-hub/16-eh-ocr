@@ -59,8 +59,9 @@ class MotorTesseract(Motor):
             raise MotorNoDisponible(proc.stderr.decode("utf-8", "replace")[-500:])
         return proc.stdout.decode("utf-8", "replace")
 
-    def reconocer(self, imagen: np.ndarray) -> list[Palabra]:
-        salida = self._ejecutar(imagen, ["-l", self.idiomas, "--oem", "1", "--psm", "3", "tsv"])
+    def reconocer(self, imagen: np.ndarray, idiomas: str | None = None) -> list[Palabra]:
+        """`idiomas`: p. ej. "spa"; por defecto los tres (más lento)."""
+        salida = self._ejecutar(imagen, ["-l", idiomas or self.idiomas, "--oem", "1", "--psm", "3", "tsv"])
         palabras: list[Palabra] = []
         lector = csv.DictReader(io.StringIO(salida), delimiter="\t", quoting=csv.QUOTE_NONE)
         for fila in lector:

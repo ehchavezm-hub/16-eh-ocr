@@ -97,6 +97,8 @@ def carpeta_tessdata() -> Path | None:
 
 IDIOMAS = ("es", "en", "de")
 IDIOMAS_TESSERACT = "spa+eng+deu"
+# Idioma detectado -> modelo de Tesseract (uno solo es varias veces más rápido que los tres)
+TESSERACT_POR_IDIOMA = {"es": "spa", "en": "eng", "de": "deu"}
 
 DPI_RENDER = 300            # resolución de trabajo para páginas escaneadas
 DPI_MINIMO = 300            # por debajo se amplía la imagen
@@ -104,4 +106,5 @@ UMBRAL_PALABRA = 0.80       # confianza mínima de una palabra para no marcarla 
 UMBRAL_PAGINA = 0.90        # confianza media mínima; por debajo se reintenta
 MIN_CARACTERES_DIGITALES = 20  # una página con menos texto digital se trata como imagen
 
-TIEMPO_LIMITE_BASE_S = 120  # tiempo límite por página (se ajusta al equipo)
+TIEMPO_LIMITE_BASE_S = 300  # tiempo límite por página; si se supera, se relee en modo rápido
+TIEMPO_LIMITE_RAPIDO_S = 120  # tiempo límite del modo rápido (solo RapidOCR)

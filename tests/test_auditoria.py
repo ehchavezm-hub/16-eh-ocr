@@ -170,3 +170,24 @@ def test_cache_se_invalida_si_cambian_los_motores(tmp_path, monkeypatch):
     antes = pipeline.id_trabajo(doc)
     monkeypatch.setattr(pipeline, "firma_motores", lambda: "rapid=medium|tess=True")
     assert pipeline.id_trabajo(doc) != antes
+
+
+def test_pagina_lenta_se_relee_en_modo_rapido(escaneo, monkeypatch):
+    """Regresión: con todos los motores, páginas densas superaban el límite y quedaban «no procesadas»."""
+    import time
+
+    from eh_ocr import config, pipeline
+
+    original = pipeline.procesar_pagina
+
+    def lenta(pagina, motores, lector, rapido=False):
+        if not rapido:
+            time.sleep(3)  # simula una página que tarda demasiado
+        return original(pagina, motores, lector, rapido)
+
+    monkeypatch.setattr(pipeline, "procesar_pagina", lenta)
+    monkeypatch.setattr(config, "TIEMPO_LIMITE_BASE_S", 1)
+    p = pipeline.procesar_documento(escaneo).paginas[0]
+    assert p.estado != EstadoPagina.NO_PROCESADA
+    assert "modo rápido" in p.mensaje
+    assert "representantes" in p.texto

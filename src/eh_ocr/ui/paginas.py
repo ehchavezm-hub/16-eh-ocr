@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import html
+
 import os
 import subprocess
 import sys
@@ -406,8 +408,12 @@ class PaginaCola(QWidget):
             self.tabla.setRowCount(len(self.trabajador.trabajos))
         t = self.trabajador.trabajos[i]
         estado = t.estado.value
-        if t.estado == Estado.PROCESANDO and t.paginas:
-            estado = f"● Página {t.pagina_actual} de {t.paginas}"
+        if t.estado == Estado.PROCESANDO:
+            if t.paginas:
+                pct = int(100 * t.pagina_actual / t.paginas)
+                estado = f"● {t.pagina_actual} de {t.paginas} páginas ({pct} %)"
+            else:
+                estado = "● Abriendo el documento…"
         elif t.mensaje and t.estado in (Estado.DUDOSO, Estado.ERROR, Estado.NO_ADMITIDO, Estado.CANCELADO):
             estado = f"{t.estado.value}: {t.mensaje}"
         prefijo = {Estado.LISTO: "✓ ", Estado.DUDOSO: "⚠ ", Estado.PROTEGIDO: "🔒 "}.get(t.estado, "")
@@ -429,25 +435,61 @@ class PaginaCola(QWidget):
             item.setToolTip(str(t.ruta) if c == 1 else v)
             self.tabla.setItem(i, c, item)
         self.tabla.blockSignals(False)
-        if t.estado == Estado.PROCESANDO and t.detalle:
-            d = t.detalle
-            self.lbl_ahora.setText(
-                f"<b>{t.ruta.name}</b><br>Página {d.get('pagina')} de {t.paginas}<br><br>"
-                f"Tipo: {d.get('tipo', '—')}<br>"
-                f"Preproceso: {d.get('pasos') or 'ninguno'}<br>"
-                f"Motores: {' + '.join(d.get('motores', [])) or '—'}"
-                f"{' (votación)' if len(d.get('motores', [])) > 1 else ''}<br>"
-                f"Confianza: {d.get('confianza', 0) * 100:.1f} %<br>"
-                f"Acelerador: {d.get('acelerador', 'CPU')}"
-            )
+        if t.estado == Estado.PROCESANDO:
+            self.lbl_ahora.setText(self._texto_ahora(t))
+
+    @staticmethod
+    def _duracion(segundos: float | None) -> str:
+        if segundos is None:
+            return "calculando…"
+        if segundos < 60:
+            return "menos de 1 minuto"
+        minutos = round(segundos / 60)
+        return f"unos {minutos} min" if minutos < 60 else f"unas {minutos // 60} h {minutos % 60:02d} min"
+
+    def _texto_ahora(self, t) -> str:
+        nombre = html.escape(t.ruta.name)
+        if not t.paginas:
+            return f"<b>{nombre}</b><br>Abriendo el documento…"
+        pct = int(100 * t.pagina_actual / t.paginas)
+        lineas = [
+            f"<b>{nombre}</b>",
+            f"<b>{t.pagina_actual} de {t.paginas} páginas ({pct} %)</b>",
+            f"Tiempo restante: {self._duracion(t.restante_s())}",
+        ]
+        if t.en_curso:
+            paginas = ", ".join(str(n) for n in sorted(t.en_curso))
+            lineas.append(f"Leyendo ahora: página{'s' if len(t.en_curso) > 1 else ''} {paginas}")
+        d = t.detalle
+        if d.get("evento") == "terminada":
+            motores = d.get("motores", [])
+            lineas += [
+                "",
+                f"Última terminada: página {d.get('pagina')} ({d.get('segundos', 0):.0f} s)",
+                f"Tipo: {html.escape(str(d.get('tipo', '—')))}",
+                f"Preproceso: {html.escape(str(d.get('pasos') or 'ninguno'))}",
+                f"Motores: {html.escape(' + '.join(motores)) or '—'}{' (votación)' if len(motores) > 1 else ''}",
+                f"Confianza: {d.get('confianza', 0) * 100:.1f} %",
+                f"Acelerador: {html.escape(str(d.get('acelerador', 'CPU')))}",
+            ]
+        return "<br>".join(lineas)
 
     def _progreso(self, hechas: int, total: int) -> None:
-        self.barra.setMaximum(max(total, 1))
-        self.barra.setValue(hechas)
-        self.lbl_progreso.setText(f"<b>Progreso total: {hechas} de {total} páginas</b>")
+        if self.trabajador.ocupado and hechas == 0:
+            self.barra.setRange(0, 0)  # barra en movimiento: está trabajando aunque aún no termine una página
+        else:
+            self.barra.setRange(0, max(total, 1))
+            self.barra.setValue(hechas)
+        pct = int(100 * hechas / total) if total else 0
+        restantes = [t.restante_s() for t in self.trabajador.trabajos if t.estado == Estado.PROCESANDO]
+        eta = f" · tiempo restante del documento actual: {self._duracion(restantes[0])}" if restantes else ""
+        self.lbl_progreso.setText(f"<b>Progreso total: {hechas} de {total} páginas ({pct} %)</b>{eta}")
 
     def _terminada(self) -> None:
         self.btn_pausa.setChecked(False)
+        hechas, total = self.trabajador.paginas_totales()
+        self.barra.setRange(0, max(total, 1))
+        self.barra.setValue(hechas)
         self.lbl_ahora.setText("Procesamiento terminado.")
         self._actualizar_botones()
 

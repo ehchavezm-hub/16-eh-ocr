@@ -42,6 +42,17 @@ class Trabajo:
     resultado: ResultadoDocumento | None = None
     salidas: list[Path] = field(default_factory=list)
     detalle: dict = field(default_factory=dict)
+    en_curso: set = field(default_factory=set)   # páginas que se están leyendo ahora
+    inicio: float = 0.0                           # para estimar el tiempo restante
+
+    def restante_s(self) -> float | None:
+        """Segundos estimados para terminar este documento (None si aún no se puede estimar)."""
+        if not self.inicio or self.pagina_actual <= 0 or not self.paginas:
+            return None
+        import time
+
+        por_pagina = (time.monotonic() - self.inicio) / self.pagina_actual
+        return por_pagina * (self.paginas - self.pagina_actual)
 
     @property
     def terminado(self) -> bool:
@@ -181,14 +192,23 @@ class Trabajador(QObject):
 
     def _procesar(self, i: int, protegidos: list[int]) -> None:
         t = self.trabajos[i]
+        import time
+
         t.estado = Estado.PROCESANDO
         t.pagina_actual = 0
+        t.en_curso = set()
+        t.inicio = time.monotonic()
         self.trabajo_cambiado.emit(i)
 
         def al_progresar(p: pipeline.Progreso) -> None:
             t.paginas = p.total
-            t.pagina_actual = max(t.pagina_actual, p.pagina)
-            t.detalle = dict(p.detalle, pagina=p.pagina)
+            evento = p.detalle.get("evento")
+            if evento == "iniciada":
+                t.en_curso.add(p.pagina)
+            elif evento == "terminada":
+                t.en_curso.discard(p.pagina)
+                t.pagina_actual = p.detalle.get("hechas", t.pagina_actual + 1)
+                t.detalle = dict(p.detalle, pagina=p.pagina)
             self.trabajo_cambiado.emit(i)
             self.progreso_total.emit(*self.paginas_totales())
 

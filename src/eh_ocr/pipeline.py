@@ -18,7 +18,7 @@ import json
 import logging
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturoTimeout
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -260,29 +260,48 @@ def _confianza_media(lineas: list[Linea]) -> float:
     return sum(p.confianza for p in pals) / len(pals) if pals else 0.0
 
 
-def _reconocer_variante(t: preproceso.ImagenTrabajo, motores: Motores) -> tuple[list[Linea], list[str]]:
-    usados = []
-    with ThreadPoolExecutor(max_workers=2) as ex:
-        fut_r = ex.submit(motores.rapid.reconocer, t.imagen) if motores.rapid.disponible() else None
-        fut_t = ex.submit(motores.tesseract.reconocer, t.imagen) if motores.tesseract.disponible() else None
-        pr = fut_r.result() if fut_r else []
-        pt = fut_t.result() if fut_t else []
-    if fut_r:
-        usados.append(motores.rapid.nombre)
-    if fut_t:
-        usados.append(motores.tesseract.nombre)
-    if pr and pt:
-        lineas = votar(pr, pt)
-    else:
-        lineas = agrupar_en_lineas(pr or pt)
-    # cajas de vuelta a la imagen original (para el PDF buscable y la revisión)
+def _a_original(lineas: list[Linea], t: preproceso.ImagenTrabajo) -> list[Linea]:
+    """Cajas de vuelta a la imagen original (para el PDF buscable y la revisión)."""
     for l in lineas:
         for p in l.palabras:
             p.caja = t.a_original(p.caja)
-    return lineas, usados
+    return lineas
 
 
-def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfDigital | None) -> ResultadoPagina:
+def _reconocer(base: preproceso.ImagenTrabajo, motores: Motores, rapido: bool) -> tuple[list[Linea], list[str]]:
+    """1) RapidOCR (rápido) sobre la imagen y, si la confianza es baja, sobre otras versiones;
+    2) Tesseract UNA sola vez, sobre la mejor versión y solo en el idioma detectado; 3) votación.
+    En modo rápido: solo RapidOCR sobre la imagen estándar."""
+    from .modelo import Palabra  # noqa: F401  (tipos)
+
+    usar_rapid = motores.rapid.disponible()
+    variantes = ("estandar",) if rapido else preproceso.VARIANTES
+    mejor_t, mejor_pr, mejor_conf = None, [], -1.0
+    if usar_rapid:
+        for nombre in variantes:
+            t = preproceso.variante(base, nombre)
+            pr = motores.rapid.reconocer(t.imagen)
+            conf = sum(p.confianza for p in pr) / len(pr) if pr else 0.0
+            if conf > mejor_conf:
+                mejor_t, mejor_pr, mejor_conf = t, pr, conf
+            if mejor_conf >= config.UMBRAL_PAGINA:
+                break
+    if mejor_t is None:
+        mejor_t = preproceso.variante(base, "estandar")
+    usados = [motores.rapid.nombre] if usar_rapid else []
+    if rapido or not motores.tesseract.disponible():
+        return _a_original(agrupar_en_lineas(mejor_pr), mejor_t), usados
+    idioma = diccionarios().detectar_idioma([p.texto for p in mejor_pr])
+    pt = motores.tesseract.reconocer(mejor_t.imagen, config.TESSERACT_POR_IDIOMA.get(idioma))
+    usados.append(motores.tesseract.nombre)
+    lineas = votar(mejor_pr, pt) if (mejor_pr and pt) else agrupar_en_lineas(mejor_pr or pt)
+    return _a_original(lineas, mejor_t), usados
+
+
+def procesar_pagina(
+    pagina: Pagina, motores: Motores, lector_digital: LectorPdfDigital | None, rapido: bool = False
+) -> ResultadoPagina:
+    """`rapido`: solo RapidOCR, sin reintentos ni tablas (se usa si la página superó el tiempo límite)."""
     inicio = time.perf_counter()
     perfil = perfilar(pagina)
 
@@ -324,15 +343,7 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
         )
 
     base = preparar_imagen(pagina, perfil, motores)
-    mejor_lineas, mejor_motores, mejor_conf = [], [], -1.0
-    for nombre in preproceso.VARIANTES:
-        t = preproceso.variante(base, nombre)
-        lineas, usados = _reconocer_variante(t, motores)
-        conf = _confianza_media(lineas)
-        if conf > mejor_conf:
-            mejor_lineas, mejor_motores, mejor_conf = lineas, usados, conf
-        if mejor_conf >= config.UMBRAL_PAGINA:
-            break
+    mejor_lineas, mejor_motores = _reconocer(base, motores, rapido)
 
     dic = diccionarios()
     for l in mejor_lineas:
@@ -342,7 +353,9 @@ def procesar_pagina(pagina: Pagina, motores: Motores, lector_digital: LectorPdfD
     marcar_dudosas(mejor_lineas)
     estado = EstadoPagina.DUDOSA if any(p.dudosa for l in mejor_lineas for p in l.palabras) else EstadoPagina.OK
     palabras = [p.texto for l in mejor_lineas for p in l.palabras]
-    tablas_pag = _tablas_en_imagen(base, mejor_lineas)
+    tablas_pag = [] if rapido else _tablas_en_imagen(base, mejor_lineas)
+    if rapido:
+        aviso_ilegible = "; ".join(x for x in (aviso_ilegible, "leída en modo rápido (superó el tiempo límite)") if x)
     return ResultadoPagina(
         perfil=perfil,
         lineas=mejor_lineas,
@@ -380,6 +393,17 @@ def _tablas_en_imagen(base: preproceso.ImagenTrabajo, lineas: list[Linea]) -> li
     except Exception:
         log.exception("Detección de tablas: se continúa sin ellas")
         return []
+
+
+def _modo_rapido(ex: ThreadPoolExecutor, pagina: Pagina, motores: Motores, lector) -> ResultadoPagina:
+    """Segunda oportunidad para una página lenta: solo RapidOCR. Si también falla, queda marcada."""
+    inicio = time.perf_counter()
+    fut = ex.submit(procesar_pagina, pagina, motores, lector, True)
+    try:
+        return fut.result(timeout=config.TIEMPO_LIMITE_RAPIDO_S)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Modo rápido también falló en página %s: %s", pagina.numero, e)
+        return _pagina_no_procesada(pagina, "Tiempo límite superado", time.perf_counter() - inicio)
 
 
 def _pagina_no_procesada(pagina: Pagina, mensaje: str, segundos: float) -> ResultadoPagina:
@@ -422,49 +446,66 @@ def procesar_documento(
                 borrar_cache_pagina(ruta, n)
         resultados: dict[int, ResultadoPagina] = {}
         paralelas = hardware.detectar().paginas_en_paralelo
+
+        def avisar(evento: str, pagina: int, r: ResultadoPagina | None = None) -> None:
+            if not al_progresar:
+                return
+            detalle: dict = {"evento": evento, "hechas": len(resultados)}
+            if r is not None:
+                detalle.update(
+                    tipo=r.perfil.tipo.value,
+                    motores=r.motores,
+                    confianza=r.confianza_media,
+                    pasos=r.mensaje,
+                    estado=r.estado.value,
+                    acelerador=motores.rapid.acelerador,
+                    segundos=r.segundos,
+                )
+            al_progresar(Progreso(ruta, pagina, total, detalle))
+
+        avisar("inicio", 0)  # la interfaz ya sabe cuántas páginas hay
         pendientes = list(range(total))
-        while pendientes:
-            control.esperar_si_pausado()
-            lote, pendientes = pendientes[:paralelas], pendientes[paralelas:]
-            futuros = {}
-            for i in lote:
+        activos: dict = {}  # futuro -> (índice, inicio)
+        while pendientes or activos:
+            # Mantener ocupados todos los hilos: apenas termina una página, entra la siguiente
+            while pendientes and len(activos) < paralelas:
+                control.esperar_si_pausado()
+                i = pendientes.pop(0)
                 cache = cargar_cache(ruta, i + 1)
                 if cache is not None:
                     resultados[i] = cache
+                    avisar("terminada", i + 1, cache)
                     continue
-                futuros[i] = (ex.submit(procesar_pagina, doc.pagina(i), motores, lector), time.perf_counter())
-            for i, (fut, t0) in futuros.items():
-                restante = max(1.0, limite - (time.perf_counter() - t0))
+                activos[ex.submit(procesar_pagina, doc.pagina(i), motores, lector)] = (i, time.perf_counter())
+                avisar("iniciada", i + 1)
+            if not activos:
+                continue
+            ahora = time.perf_counter()
+            espera = max(0.5, min(limite - (ahora - t0) for _, t0 in activos.values()))
+            listos, _ = wait(list(activos), timeout=min(espera, 1.0), return_when=FIRST_COMPLETED)
+            if control.cancelar.is_set():
+                raise Cancelado()
+            for fut in listos:
+                i, t0 = activos.pop(fut)
                 try:
-                    r = fut.result(timeout=restante)
-                except FuturoTimeout:
-                    colgadas += 1
-                    log.warning("Página %s superó el tiempo límite (%.0f s)", i + 1, limite)
-                    r = _pagina_no_procesada(doc.pagina(i), "Tiempo límite superado", limite)
+                    r = fut.result()
                 except Exception as e:  # el motor falló: no se cierra la app
                     log.exception("Error en página %s", i + 1)
                     r = _pagina_no_procesada(doc.pagina(i), f"Error: {e}", time.perf_counter() - t0)
                 resultados[i] = r
                 if r.estado != EstadoPagina.NO_PROCESADA:
                     guardar_cache(ruta, r)
-            for i in lote:
-                r = resultados[i]
-                if al_progresar:
-                    al_progresar(
-                        Progreso(
-                            ruta,
-                            i + 1,
-                            total,
-                            {
-                                "tipo": r.perfil.tipo.value,
-                                "motores": r.motores,
-                                "confianza": r.confianza_media,
-                                "pasos": r.mensaje,
-                                "estado": r.estado.value,
-                                "acelerador": motores.rapid.acelerador,
-                            },
-                        )
-                    )
+                avisar("terminada", i + 1, r)
+            for fut, (i, t0) in list(activos.items()):
+                if time.perf_counter() - t0 >= limite:  # página colgada: se sigue con las demás
+                    activos.pop(fut)
+                    colgadas += 1
+                    log.warning("Página %s superó el tiempo límite (%.0f s): se relee en modo rápido", i + 1, limite)
+                    r = _modo_rapido(ex, doc.pagina(i), motores, lector)
+                    resultados[i] = r
+                    if r.estado != EstadoPagina.NO_PROCESADA:
+                        guardar_cache(ruta, r)
+                    avisar("terminada", i + 1, r)
     finally:
         # Con una página colgada NO se espera ni se cierra el documento: ese hilo aún podría
         # estar leyéndolo. Se libera al cerrar eh-ocr. Sin páginas colgadas, cierre normal.
