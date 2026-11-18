@@ -64,6 +64,24 @@ def autoprueba(destino: Path) -> int:
     return 0 if ok else 1
 
 
+_archivo_caidas = None
+
+
+def _registrar_caidas() -> None:
+    """Si eh-ocr se cae por un fallo interno (librería nativa), deja escrito dónde en datos\\caidas.log.
+    Sin esto, la ventana se cierra sin ningún rastro."""
+    global _archivo_caidas
+    import faulthandler
+
+    try:
+        from . import config
+
+        _archivo_caidas = open(config.carpeta_datos() / "caidas.log", "a", encoding="utf-8")
+        faulthandler.enable(file=_archivo_caidas, all_threads=True)
+    except OSError:
+        pass
+
+
 def _salidas_seguras() -> None:
     """En el .exe sin consola, stdout/stderr no existen: las librerías que escriben ahí fallarían."""
     import os
@@ -75,6 +93,7 @@ def _salidas_seguras() -> None:
 
 def main() -> int:
     _salidas_seguras()
+    _registrar_caidas()
     try:
         return _main()
     except Exception:  # nunca una ventana de error técnica sin explicación
