@@ -43,3 +43,16 @@ def test_acceso_directo_escapa_comillas():
     assert cmd[:4] == ["powershell", "-NoProfile", "-NonInteractive", "-Command"]
     assert "o''neil" in cmd[4]  # comilla simple escapada: sin inyección en PowerShell
     assert "$s.Arguments='-m eh_ocr'" in cmd[4]
+
+
+def test_instala_lo_que_encuentra_y_avisa_lo_que_falta(tmp_path, capsys):
+    r = tmp_path / "eh-ocr" / "_internal" / "recursos" / "tesseract"
+    r.mkdir(parents=True)
+    origen = instalar.buscar_recursos(tmp_path / "eh-ocr")
+    assert instalar.copiar_recursos(origen, tmp_path / "repo") == ["tesseract"]
+    assert "Falta «modelos»" in capsys.readouterr().out
+
+
+def test_acepta_la_carpeta_superior(tmp_path):
+    _zip_falso(tmp_path)  # tmp_path/eh-ocr/_internal/recursos
+    assert instalar.buscar_recursos(tmp_path).name == "recursos"

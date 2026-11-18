@@ -34,19 +34,29 @@ def paso(n: int, texto: str) -> None:
 
 
 def buscar_recursos(origen: Path) -> Path:
-    """Acepta la carpeta del ZIP (con _internal) o directamente la carpeta recursos."""
-    for candidata in (origen / "_internal" / "recursos", origen / "recursos", origen):
-        if all((candidata / p).is_dir() for p in PARTES):
+    """Acepta la carpeta del ZIP (con _internal), su carpeta recursos o la carpeta superior."""
+    candidatas = [origen / "_internal" / "recursos", origen / "recursos", origen]
+    candidatas += [p / "_internal" / "recursos" for p in origen.glob("*") if p.is_dir()]
+    for candidata in candidatas:
+        if any((candidata / parte).is_dir() for parte in PARTES):
             return candidata
+    detalle = ""
+    if origen.is_dir():
+        contenido = ", ".join(sorted(p.name for p in origen.iterdir())[:15]) or "(vacía)"
+        detalle = f"\nContenido de esa carpeta: {contenido}"
     raise SystemExit(
-        f"No encontré los recursos en «{origen}».\n"
+        f"No encontré los recursos en «{origen}».{detalle}\n"
         "Indica la carpeta descomprimida del ZIP de eh-ocr (la que contiene eh-ocr.exe y _internal)."
     )
 
 
 def copiar_recursos(origen: Path, destino: Path = RECURSOS) -> list[str]:
+    """Copia lo que encuentre; avisa de lo que falte (eh-ocr funciona igual, con menos precisión)."""
     copiados = []
     for parte in PARTES:
+        if not (origen / parte).is_dir():
+            print(f"  ⚠ Falta «{parte}» en {origen}: se instala sin esa parte.")
+            continue
         d = destino / parte
         if d.exists():
             shutil.rmtree(d)
@@ -114,8 +124,9 @@ def main() -> int:
     print("  Librerías instaladas ✓")
 
     paso(3, "Copiando modelos precisos y Tesseract desde el ZIP")
-    copiar_recursos(recursos_zip)
-    print(f"  Copiado a {RECURSOS} ✓")
+    print(f"  Recursos encontrados en {recursos_zip}")
+    copiados = copiar_recursos(recursos_zip)
+    print(f"  Copiado ({', '.join(copiados) or 'nada'}) a {RECURSOS} ✓")
 
     paso(4, "Probando eh-ocr sin internet")
     with tempfile.TemporaryDirectory() as tmp:
