@@ -120,3 +120,22 @@ def test_reprocesar_no_congela_la_ventana(app, escaneo):
     assert rev.btn_reprocesar.text() == "Reprocesar página"
     assert "representantes" in rev._pagina().texto
     v.close()
+
+
+def test_no_se_quita_mientras_se_procesa(app, tmp_path):
+    import threading
+
+    from eh_ocr.ui.ventana import VentanaPrincipal
+
+    a = tmp_path / "a.png"
+    a.write_bytes(b"x")
+    v = VentanaPrincipal()
+    v.agregar_archivos([a])
+    evento = threading.Event()
+    v.trabajador._hilo = threading.Thread(target=evento.wait, daemon=True)  # simula proceso en curso
+    v.trabajador._hilo.start()
+    assert v.trabajador.quitar([0]) == 0 and len(v.trabajador.trabajos) == 1
+    evento.set()
+    v.trabajador._hilo.join()
+    assert v.trabajador.quitar([0]) == 1 and v.trabajador.trabajos == []
+    v.close()

@@ -15,7 +15,7 @@ class TipoPagina(str, Enum):
 class EstadoPagina(str, Enum):
     OK = "ok"
     DUDOSA = "dudosa"              # tiene palabras de baja confianza
-    NO_PROCESADA = "no_procesada"  # error o tiempo límite superado
+    NO_PROCESADA = "no_procesada"  # falló también el modo rápido (se puede reprocesar)
 
 
 @dataclass

@@ -210,7 +210,7 @@ def votar(principal: list[Palabra], secundaria: list[Palabra], dic: Diccionarios
             salida.append(linea)
 
     salida.sort(key=lambda l: (l.caja[1], l.caja[0]))
-    return salida
+    return ordenar_por_columnas(salida)  # el orden de lectura a dos columnas se conserva
 
 
 def marcar_dudosas(lineas: list[Linea], umbral: float = config.UMBRAL_PALABRA) -> None:

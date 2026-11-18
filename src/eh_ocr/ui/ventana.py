@@ -104,6 +104,7 @@ class VentanaPrincipal(QMainWindow):
         self.revision.volver.connect(lambda: self.mostrar("cola"))
         self.trabajador.cola_terminada.connect(self._cola_terminada)
         self.trabajador.pide_contrasenas.connect(self._pedir_contrasenas)
+        self.trabajador.lista_cambiada.connect(self.revision.olvidar)
 
         self.mostrar("inicio")
         self._actualizar_equipo(cargando=True)
@@ -162,7 +163,8 @@ class VentanaPrincipal(QMainWindow):
                 tablas_txt = "Tablas: solo con bordes"
         self.lbl_equipo.setText(
             f"● Sin internet: {'correcto' if red_bloqueada() else 'no verificado'}<br>"
-            f"● Acelerador: {m.rapid.acelerador if not cargando else eq.acelerador}<br>"
+            f"● Acelerador: {m.rapid.acelerador if not cargando else eq.acelerador}"
+            f"{' (la gráfica falló antes; se usa el procesador)' if (config.carpeta_datos() / 'solo_cpu').exists() else ''}<br>"
             f"{motores}<br>"
             f"● {tablas_txt}<br>"
             f"● Manuscritos y fórmulas: {'instalado' if complemento else 'complemento no instalado'}<br>"

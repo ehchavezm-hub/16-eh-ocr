@@ -234,3 +234,35 @@ def test_error_de_la_grafica_pasa_al_procesador(escaneo):
     img = np.full((200, 600, 3), 255, np.uint8)
     m.reconocer(img)  # no debe lanzar
     assert m.acelerador == "CPU"
+
+
+def test_votacion_conserva_dos_columnas():
+    """Regresión: con Tesseract, la votación reordenaba solo de arriba abajo y mezclaba columnas."""
+    from eh_ocr.votacion import votar
+
+    palabras = _linea("TITULO DEL CONTRATO QUE CRUZA AMBAS COLUMNAS", 100, 50, 2200)
+    for i in range(8):
+        palabras += _linea(f"izquierda renglon {i} texto corrido", 100, 150 + i * 50, 1000)
+        palabras += _linea(f"derecha renglon {i} texto corrido", 1300, 150 + i * 50, 1000)
+    import copy
+
+    textos = [l.texto for l in votar(copy.deepcopy(palabras), copy.deepcopy(palabras))]
+    assert textos[1:9] == [f"izquierda renglon {i} texto corrido" for i in range(8)]
+
+
+def test_tras_una_caida_se_queda_en_procesador(monkeypatch):
+    import atexit
+    import os
+
+    from eh_ocr import __main__ as principal
+    from eh_ocr import config
+
+    monkeypatch.delenv("EH_OCR_SOLO_CPU", raising=False)
+    monkeypatch.setattr(atexit, "register", lambda f: None)
+    principal._proteccion_caidas()            # sesión que "se cae" (la marca queda)
+    principal._proteccion_caidas()            # siguiente: detecta la caída
+    (config.carpeta_datos() / "sesion_abierta").unlink()
+    monkeypatch.delenv("EH_OCR_SOLO_CPU")
+    assert principal._proteccion_caidas() is True  # y las siguientes siguen en CPU
+    assert os.environ["EH_OCR_SOLO_CPU"] == "1"
+    monkeypatch.delenv("EH_OCR_SOLO_CPU")

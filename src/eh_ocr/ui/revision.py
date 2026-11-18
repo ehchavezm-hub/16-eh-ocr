@@ -185,6 +185,17 @@ class PaginaRevision(QWidget):
         lay.addWidget(self.lbl_estado)
 
     # --- carga ---------------------------------------------------------------
+    def olvidar(self) -> None:
+        """La lista cambió (se quitaron archivos): la revisión vuelve a empezar."""
+        if self._doc is not None:
+            self._doc.cerrar()
+            self._doc = None
+        self.indice = None
+        self.vista.scene().clear()
+        self.texto.clear()
+        self.lbl_estado.setText("")
+        self._sin_seleccion()
+
     @property
     def trabajo(self):
         return self.trabajador.trabajos[self.indice] if self.indice is not None else None
@@ -320,7 +331,12 @@ class PaginaRevision(QWidget):
         for w in (self.btn_aceptar, self.btn_cambiar, self.editor):
             w.setEnabled(False)
         self.editor.clear()
-        hay = self.trabajo is not None and self.trabajo.resultado is not None and bool(self._pagina().dudosas)
+        hay = (
+            self.trabajo is not None
+            and self.trabajo.resultado is not None
+            and 1 <= self.num_pagina <= len(self.trabajo.resultado.paginas)
+            and bool(self._pagina().dudosas)
+        )
         self.btn_aceptar_pagina.setEnabled(hay)
 
     def _seleccionar(self, p: Palabra) -> None:

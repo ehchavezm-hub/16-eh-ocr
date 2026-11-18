@@ -189,7 +189,11 @@ class Documento:
     def _tamano_pt(self, i: int) -> tuple[float, float]:
         if self._pdf is not None:
             with _PDFIUM:
-                w, h = self._pdf[i].get_size()
+                pagina = self._pdf[i]
+                try:
+                    w, h = pagina.get_size()
+                finally:
+                    pagina.close()
             return float(w), float(h)
         with _IMAGEN:
             self._img.seek(i)
@@ -203,8 +207,13 @@ class Documento:
     def _imagen(self, i: int, dpi: int) -> tuple[np.ndarray, float]:
         if self._pdf is not None:
             with _PDFIUM:
-                bmp = self._pdf[i].render(scale=dpi / 72)
-                img = bmp.to_pil().convert("RGB")
+                pagina = self._pdf[i]
+                try:
+                    bmp = pagina.render(scale=dpi / 72)
+                    img = bmp.to_pil().convert("RGB")
+                    bmp.close()
+                finally:
+                    pagina.close()
             return np.asarray(img), float(dpi)
         cuadro = self._cuadro(i)
         return np.asarray(cuadro.convert("RGB")), self._dpi_imagen(cuadro.width)
@@ -213,11 +222,13 @@ class Documento:
         if self._pdf is None:
             return 0
         with _PDFIUM:
-            tp = self._pdf[i].get_textpage()
+            pagina = self._pdf[i]
+            tp = pagina.get_textpage()
             try:
                 texto = tp.get_text_range()
             finally:
                 tp.close()
+                pagina.close()
         return sum(1 for c in texto if c.isalnum())
 
     def _imagen_completa(self, i: int) -> bool:
@@ -226,10 +237,13 @@ class Documento:
             return True
         with _PDFIUM:
             pagina = self._pdf[i]
-            w, h = pagina.get_size()
-            area_pagina = max(w * h, 1)
-            for obj in pagina.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE], max_depth=2):
-                x0, y0, x1, y1 = obj.get_pos()
-                if (x1 - x0) * (y1 - y0) >= 0.6 * area_pagina:
-                    return True
+            try:
+                w, h = pagina.get_size()
+                area_pagina = max(w * h, 1)
+                for obj in pagina.get_objects(filter=[pdfium.raw.FPDF_PAGEOBJ_IMAGE], max_depth=2):
+                    x0, y0, x1, y1 = obj.get_pos()
+                    if (x1 - x0) * (y1 - y0) >= 0.6 * area_pagina:
+                        return True
+            finally:
+                pagina.close()
         return False

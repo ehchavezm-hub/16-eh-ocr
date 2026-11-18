@@ -334,6 +334,11 @@ class PaginaCola(QWidget):
         self._actualizar_botones()
 
     def _quitar(self) -> None:
+        if self.trabajador.ocupado:
+            from PySide6.QtWidgets import QMessageBox
+
+            QMessageBox.information(self, "eh-ocr", "Espera a que termine el procesamiento para quitar archivos de la lista.")
+            return
         filas = sorted({ix.row() for ix in self.tabla.selectionModel().selectedRows()})
         if not filas:  # sin filas seleccionadas: se quitan los desmarcados
             filas = [i for i, t in enumerate(self.trabajador.trabajos) if not t.marcado]

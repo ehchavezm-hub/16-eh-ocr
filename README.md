@@ -19,6 +19,10 @@ En equipos corporativos que bloquean `.exe` sin firma, ver «Equipos que bloquea
 Una vez instalado, se abre con el acceso directo **eh-ocr** (Escritorio) o **Abrir eh-ocr**
 (carpeta del proyecto), o con `py -3.13 -m eh_ocr`.
 
+Si eh-ocr se cerró de golpe alguna vez (por ejemplo, por el controlador de la tarjeta gráfica),
+desde entonces usa el procesador y lo indica en «Estado del equipo». Para volver a probar la
+gráfica, borra el archivo `datos\solo_cpu`. Los detalles de una caída quedan en `datos\caidas.log`.
+
 Resultados: junto al original, como `nombre_ocr.pdf` (PDF con texto buscable) y
 `nombre_ocr.docx` (Word). También Excel, TXT, Markdown y JSON. Nunca se sobrescribe nada.
 

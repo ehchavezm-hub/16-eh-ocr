@@ -14,6 +14,14 @@ Estabilidad y compatibilización (laptop corporativa con gráfica híbrida NVIDI
 - Informes: nombres y mensajes escapados (un nombre con HTML no se interpreta).
 - Registros: las librerías de OCR/tablas ya no llenan la consola de mensajes INFO.
 - Instalador sobre Python con accesos directos «eh-ocr» (Escritorio) y «Abrir eh-ocr».
+- Compatibilización palabra por palabra:
+  - La votación conserva el orden de lectura a dos columnas.
+  - No se quitan archivos de la lista durante el proceso; la revisión se reinicia si la lista cambia.
+  - Cancelar no espera a las páginas en curso.
+  - Tras una caída con la gráfica, eh-ocr se queda en el procesador (`datos/solo_cpu`).
+  - Páginas de PDFium cerradas tras usarlas (memoria estable en documentos largos).
+  - Versiones de librerías con tope (las probadas).
+  - Mensajes del modo rápido y de páginas no procesadas más claros.
 
 - Instalador sobre Python (`instalar.py`) para equipos que bloquean `.exe` sin firma.
 - La carpeta `datos` de la autoprueba ya no viaja dentro del ZIP.

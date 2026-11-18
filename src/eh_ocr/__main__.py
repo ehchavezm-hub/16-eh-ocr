@@ -91,7 +91,13 @@ def _proteccion_caidas() -> bool:
     from . import config
 
     marca = config.carpeta_datos() / "sesion_abierta"
-    seguro = marca.exists() or os.environ.get("EH_OCR_SOLO_CPU") == "1"
+    solo_cpu = config.carpeta_datos() / "solo_cpu"
+    caida = marca.exists()
+    if caida:
+        # La gráfica ya falló una vez en este equipo: se queda en el procesador (borrar
+        # datos\\solo_cpu para volver a probar la gráfica).
+        solo_cpu.write_text("La tarjeta gráfica falló; eh-ocr usa el procesador.", encoding="utf-8")
+    seguro = caida or solo_cpu.exists() or os.environ.get("EH_OCR_SOLO_CPU") == "1"
     if seguro:
         os.environ["EH_OCR_SOLO_CPU"] = "1"
     try:
@@ -100,6 +106,12 @@ def _proteccion_caidas() -> bool:
     except OSError:
         pass
     return seguro
+
+
+def _marca_sesion():
+    from . import config
+
+    return config.carpeta_datos() / "sesion_abierta"
 
 
 def _salidas_seguras() -> None:
@@ -158,9 +170,10 @@ def _main() -> int:
         logging.getLogger(__name__).warning("No se pudo limpiar la caché", exc_info=True)
 
     try:
-        modo_seguro = _proteccion_caidas()
+        caida_previa = _marca_sesion().exists()  # la sesión anterior no cerró bien
+        _proteccion_caidas()
     except OSError:
-        modo_seguro = False
+        caida_previa = False
 
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
@@ -176,17 +189,16 @@ def _main() -> int:
         app.setWindowIcon(QIcon(str(icono)))
     ventana = VentanaPrincipal()
     ventana.show()
-    if modo_seguro:
-        logging.getLogger(__name__).warning("Sesión anterior cerrada de golpe: modo seguro (solo procesador)")
+    if caida_previa:
+        logging.getLogger(__name__).warning("Sesión anterior cerrada de golpe: se usa solo el procesador")
         from PySide6.QtWidgets import QMessageBox
 
         QMessageBox.information(
             ventana,
             "eh-ocr",
             "La sesión anterior de eh-ocr se cerró de forma inesperada.\n\n"
-            "Por seguridad, esta vez se usará el procesador en lugar de la tarjeta gráfica. "
-            "Funciona igual, puede ser algo más lento. La próxima vez que abras eh-ocr "
-            "volverá a intentar con la gráfica.",
+            "Por seguridad, desde ahora eh-ocr usará el procesador en lugar de la tarjeta "
+            "gráfica. Funciona igual; puede ser algo más lento.",
         )
     # Archivos arrastrados sobre eh-ocr.exe
     archivos = [Path(a) for a in sys.argv[1:] if Path(a).exists()]

@@ -68,8 +68,9 @@ sube de nivel cuando la confianza es baja, sin intervención del usuario.
   OpenVINO para ahorrar ~150–200 MB).
   - **Con la gráfica, una página a la vez** (una sola sesión DirectML): varias sesiones
     simultáneas hicieron caer el controlador NVIDIA. En CPU, varias páginas en paralelo.
-  - Si la gráfica da un error, se continúa en CPU. Si una sesión termina de golpe, la siguiente
-    arranca en CPU (modo seguro) y lo avisa; las caídas quedan en `datos\caidas.log`.
+  - Si la gráfica da un error, se continúa en CPU. Si una sesión termina de golpe, desde la
+    siguiente eh-ocr usa solo el procesador en ese equipo y lo avisa (`datos\solo_cpu`; borrar
+    ese archivo para volver a probar la gráfica). Las caídas quedan en `datos\caidas.log`.
 - **Un solo modo de calidad: máxima.** No hay perfiles "ligeros"; el hardware solo define cuántas
   páginas se procesan en paralelo.
 

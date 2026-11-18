@@ -3,8 +3,8 @@
 Por cada página:
   1. Análisis (¿texto digital? ¿escaneo? ¿foto?)
   2. Preproceso (orientación, inclinación, perspectiva, iluminación, resolución)
-  3. Reconocimiento con dos motores en paralelo + votación
-  4. Control de confianza: si es baja, reintenta con otras variantes de imagen
+  3. RapidOCR (con reintentos sobre otras versiones de la imagen si la confianza es baja)
+  4. Tesseract una vez, en el idioma detectado, y votación palabra a palabra
   5. Corrección de confusiones típicas y marcado de palabras dudosas
 
 Los resultados de cada página se guardan en disco al terminarla: si el
@@ -353,7 +353,9 @@ def procesar_pagina(
     palabras = [p.texto for l in mejor_lineas for p in l.palabras]
     tablas_pag = [] if rapido else _tablas_en_imagen(base, mejor_lineas)
     if rapido:
-        aviso_ilegible = "; ".join(x for x in (aviso_ilegible, "leída en modo rápido (superó el tiempo límite)") if x)
+        aviso_ilegible = "; ".join(
+            x for x in (aviso_ilegible, "leída en modo rápido (la lectura completa tardó demasiado o falló)") if x
+        )
     return ResultadoPagina(
         perfil=perfil,
         lineas=mejor_lineas,
@@ -394,14 +396,17 @@ def _tablas_en_imagen(base: preproceso.ImagenTrabajo, lineas: list[Linea]) -> li
 
 
 def _modo_rapido(ex: ThreadPoolExecutor, pagina: Pagina, motores: Motores, lector) -> ResultadoPagina:
-    """Segunda oportunidad para una página lenta: solo RapidOCR. Si también falla, queda marcada."""
+    """Segunda oportunidad para una página lenta o con error: solo RapidOCR. Si también falla,
+    queda «no procesada» (se puede reprocesar desde la revisión)."""
     inicio = time.perf_counter()
     fut = ex.submit(procesar_pagina, pagina, motores, lector, True)
     try:
         return fut.result(timeout=config.TIEMPO_LIMITE_RAPIDO_S)
     except Exception as e:  # noqa: BLE001
         log.warning("Modo rápido también falló en página %s: %s", pagina.numero, e)
-        return _pagina_no_procesada(pagina, "Tiempo límite superado", time.perf_counter() - inicio)
+        return _pagina_no_procesada(
+            pagina, "no se pudo leer ni en modo rápido", time.perf_counter() - inicio
+        )
 
 
 def _pagina_no_procesada(pagina: Pagina, mensaje: str, segundos: float) -> ResultadoPagina:
@@ -482,6 +487,9 @@ def procesar_documento(
             espera = max(0.5, min(limite - (ahora - t0) for _, t0 in activos.values()))
             listos, _ = wait(list(activos), timeout=min(espera, 1.0), return_when=FIRST_COMPLETED)
             if control.cancelar.is_set():
+                # No se espera a las páginas en curso (pueden tardar minutos): se dejan terminar
+                # solas y el documento no se cierra mientras tanto.
+                colgadas += len(activos)
                 raise Cancelado()
             for fut in listos:
                 i, t0 = activos.pop(fut)

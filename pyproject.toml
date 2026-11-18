@@ -7,21 +7,23 @@ name = "eh-ocr"
 version = "0.2.0"
 description = "OCR autónomo para Windows: gratuito, sin internet, portable."
 requires-python = ">=3.13"
+# Versiones con tope: las probadas. RapidOCR fijado a 3.10.x porque preparar_build.py toma del
+# catálogo de esa versión las URL y huellas de los modelos.
 dependencies = [
-    "rapidocr>=3.10",
-    "onnxruntime>=1.20; sys_platform != 'win32'",
-    "onnxruntime-directml>=1.20; sys_platform == 'win32'",
-    "opencv-python-headless>=4.10",
-    "numpy>=2.0",
-    "Pillow>=11",
-    "pdfplumber>=0.11",
-    "pypdfium2>=4.30",
-    "pikepdf>=9",
-    "reportlab>=4",
-    "python-docx>=1.1",
-    "openpyxl>=3.1",
-    "pyspellchecker>=0.8",
-    "PySide6-Essentials>=6.8",
+    "rapidocr~=3.10.0",
+    "onnxruntime>=1.20,<2; sys_platform != 'win32'",
+    "onnxruntime-directml>=1.20,<2; sys_platform == 'win32'",
+    "opencv-python-headless>=4.10,<6",
+    "numpy>=2.0,<3",
+    "Pillow>=11,<14",
+    "pdfplumber>=0.11,<0.12",
+    "pypdfium2>=4.30,<6",
+    "pikepdf>=9,<11",
+    "reportlab>=4,<6",
+    "python-docx>=1.1,<2",
+    "openpyxl>=3.1,<4",
+    "pyspellchecker>=0.8,<1",
+    "PySide6-Essentials>=6.8,<7",
 ]
 
 [project.optional-dependencies]

@@ -1,7 +1,8 @@
 """Rutas y parámetros globales de eh-ocr.
 
-eh-ocr es portable: todo (modelos, Tesseract, datos) vive dentro de su
-propia carpeta. Nunca se escribe en el registro de Windows.
+eh-ocr es portable: modelos, Tesseract y datos viven en su propia carpeta (los datos pasan a
+la carpeta local del usuario solo si la del programa no admite escritura). Nunca se escribe en
+el registro de Windows.
 """
 
 from __future__ import annotations

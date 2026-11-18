@@ -75,6 +75,7 @@ class Trabajador(QObject):
     progreso_total = Signal(int, int)       # páginas hechas, páginas totales (conocidas)
     pide_contrasenas = Signal(list)         # índices de trabajos protegidos
     cola_terminada = Signal()
+    lista_cambiada = Signal()               # se quitaron archivos: los índices cambiaron
 
     def __init__(self) -> None:
         super().__init__()
@@ -128,10 +129,15 @@ class Trabajador(QObject):
         return len(indices)
 
     def quitar(self, indices: list[int]) -> int:
-        """Quita de la lista (no borra archivos). Los que se están procesando no se quitan."""
+        """Quita de la lista (no borra archivos). No se permite mientras se procesa: la numeración
+        de la lista la usa el proceso en curso para informar el avance."""
+        if self.ocupado:
+            return 0
         with self._lock:
-            quitar = {i for i in indices if self.trabajos[i].estado not in (Estado.PROCESANDO, Estado.COLA)}
+            quitar = {i for i in indices if 0 <= i < len(self.trabajos)}
             self.trabajos = [t for i, t in enumerate(self.trabajos) if i not in quitar]
+        if quitar:
+            self.lista_cambiada.emit()
         return len(quitar)
 
     def iniciar(self) -> None:

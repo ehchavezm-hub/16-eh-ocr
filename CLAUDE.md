@@ -56,8 +56,11 @@ Push directo a `main` no está permitido en las sesiones: se trabaja en la rama 
 - Rendimiento: RapidOCR prueba versiones de la imagen; Tesseract corre UNA vez por página y solo
   en el idioma detectado. Tiempo límite 300 s → modo rápido (solo RapidOCR), nunca página perdida.
 - DirectML: UNA instancia/sesión (una página a la vez en la gráfica); varias simultáneas tumbaron
-  el controlador NVIDIA del usuario. Error de DirectML → CPU. Caída → `datos/caidas.log` y la
-  siguiente sesión arranca en CPU (`sesion_abierta`).
+  el controlador NVIDIA del usuario. Error de DirectML → CPU. Caída → `datos/caidas.log`; se crea
+  `datos/solo_cpu` y desde entonces se usa CPU (borrarlo para volver a la gráfica).
+- Lista: no se quitan archivos mientras se procesa (el avance usa los índices); `lista_cambiada`
+  reinicia la revisión. La votación termina con `ordenar_por_columnas` (no reordenar solo por y).
+- Dependencias con tope (versiones probadas); rapidocr fijado a 3.10.x (catálogo de modelos).
 - Librerías rapid*: registran INFO al importarse → `config.silenciar_librerias()` tras cargarlas.
 - Equipo del usuario: AppLocker bloquea `.exe` sin firma → se usa `instalar.py` (pythonw + acceso
   directo). Tesseract firmado sí corre.
