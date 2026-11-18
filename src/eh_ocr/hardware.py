@@ -67,7 +67,7 @@ def detectar() -> Equipo:
     except Exception:
         proveedores = ("CPUExecutionProvider",)
     acelerador = "DirectML" if "DmlExecutionProvider" in proveedores else "CPU"
-    if os.environ.get("EH_OCR_SOLO_CPU") == "1":
+    if os.environ.get("EH_OCR_SOLO_CPU") == "1":  # también lo activa la protección contra caídas
         acelerador = "CPU"
     return Equipo(
         nucleos=os.cpu_count() or 4,

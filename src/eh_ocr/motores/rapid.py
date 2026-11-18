@@ -34,9 +34,12 @@ class MotorRapid(Motor):
         self.acelerador = "CPU"
         self.modelos = "small"
 
-    @staticmethod
-    def instancias_maximas() -> int:
-        """Una instancia por página en paralelo (cada una ocupa ~0,5 GB con los modelos medium)."""
+    def instancias_maximas(self) -> int:
+        """Con la gráfica (DirectML): UNA sola instancia, una página a la vez. Varias sesiones
+        simultáneas hicieron caer el controlador de NVIDIA (nvcuda64.dll / nvwgf2umx.dll) en una
+        laptop con gráfica híbrida. En CPU: una instancia por página en paralelo (~0,5 GB cada una)."""
+        if self.acelerador == "DirectML":
+            return 1
         return hardware.detectar().paginas_en_paralelo
 
     def disponible(self) -> bool:
@@ -104,6 +107,24 @@ class MotorRapid(Motor):
                 raise MotorNoDisponible(f"RapidOCR no pudo iniciarse: {ultimo_error}")
             return self._motor
 
+    def _pasar_a_cpu(self):
+        """Descarta las instancias de la gráfica y crea una en el procesador."""
+        from rapidocr import RapidOCR
+
+        with self._lock:
+            medium = self._config[1] if self._config else True
+            nuevo = RapidOCR(params=self._parametros(False, medium))
+            self._config = (False, medium)
+            self.acelerador = "CPU"
+            while True:
+                try:
+                    self._libres.get_nowait()
+                except queue.Empty:
+                    break
+            self._creadas = 1
+            self._motor = nuevo
+        return nuevo
+
     def _tomar(self):
         """Una instancia libre; si no hay y queda cupo, se crea otra (páginas en paralelo)."""
         self._cargar()
@@ -130,6 +151,13 @@ class MotorRapid(Motor):
         # Cada instancia de RapidOCR guarda estado por llamada: una página por instancia a la vez.
         motor = self._tomar()
         try:
+            r = motor(imagen)
+        except Exception as e:
+            if self.acelerador != "DirectML":
+                raise
+            # La gráfica falló (p. ej. controlador): se sigue con el procesador, sin perder la página.
+            log.warning("RapidOCR con DirectML falló (%s): se pasa al procesador", e)
+            motor = self._pasar_a_cpu()
             r = motor(imagen)
         finally:
             self._libres.put(motor)

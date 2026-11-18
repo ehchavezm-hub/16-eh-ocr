@@ -82,6 +82,26 @@ def _registrar_caidas() -> None:
         pass
 
 
+def _proteccion_caidas() -> bool:
+    """Si la sesión anterior terminó de golpe (fallo del controlador de la gráfica, por ejemplo),
+    esta sesión usa solo el procesador. Devuelve True si se activó el modo seguro."""
+    import atexit
+    import os
+
+    from . import config
+
+    marca = config.carpeta_datos() / "sesion_abierta"
+    seguro = marca.exists() or os.environ.get("EH_OCR_SOLO_CPU") == "1"
+    if seguro:
+        os.environ["EH_OCR_SOLO_CPU"] = "1"
+    try:
+        marca.write_text("eh-ocr en uso", encoding="utf-8")
+        atexit.register(lambda: marca.unlink(missing_ok=True))
+    except OSError:
+        pass
+    return seguro
+
+
 def _salidas_seguras() -> None:
     """En el .exe sin consola, stdout/stderr no existen: las librerías que escriben ahí fallarían."""
     import os
@@ -136,6 +156,11 @@ def _main() -> int:
     except Exception:
         logging.getLogger(__name__).warning("No se pudo limpiar la caché", exc_info=True)
 
+    try:
+        modo_seguro = _proteccion_caidas()
+    except OSError:
+        modo_seguro = False
+
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
 
@@ -150,6 +175,18 @@ def _main() -> int:
         app.setWindowIcon(QIcon(str(icono)))
     ventana = VentanaPrincipal()
     ventana.show()
+    if modo_seguro:
+        logging.getLogger(__name__).warning("Sesión anterior cerrada de golpe: modo seguro (solo procesador)")
+        from PySide6.QtWidgets import QMessageBox
+
+        QMessageBox.information(
+            ventana,
+            "eh-ocr",
+            "La sesión anterior de eh-ocr se cerró de forma inesperada.\n\n"
+            "Por seguridad, esta vez se usará el procesador en lugar de la tarjeta gráfica. "
+            "Funciona igual, puede ser algo más lento. La próxima vez que abras eh-ocr "
+            "volverá a intentar con la gráfica.",
+        )
     # Archivos arrastrados sobre eh-ocr.exe
     archivos = [Path(a) for a in sys.argv[1:] if Path(a).exists()]
     if archivos:

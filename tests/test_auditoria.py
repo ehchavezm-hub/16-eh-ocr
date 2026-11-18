@@ -191,3 +191,50 @@ def test_pagina_lenta_se_relee_en_modo_rapido(escaneo, monkeypatch):
     assert p.estado != EstadoPagina.NO_PROCESADA
     assert "modo rápido" in p.mensaje
     assert "representantes" in p.texto
+
+
+def test_directml_usa_una_sola_instancia(monkeypatch):
+    """Regresión: varias sesiones DirectML a la vez hicieron caer el controlador de NVIDIA."""
+    from eh_ocr.motores.rapid import MotorRapid
+
+    m = MotorRapid()
+    m.acelerador = "DirectML"
+    assert m.instancias_maximas() == 1
+
+
+def test_proteccion_de_caidas_activa_modo_seguro(monkeypatch):
+    import atexit
+
+    from eh_ocr import __main__ as principal
+    from eh_ocr import config
+
+    monkeypatch.delenv("EH_OCR_SOLO_CPU", raising=False)
+    monkeypatch.setattr(atexit, "register", lambda f: None)  # simula que la sesión no cerró bien
+    assert principal._proteccion_caidas() is False  # primera vez: normal
+    assert principal._proteccion_caidas() is True   # la marca quedó: modo seguro
+    import os
+
+    assert os.environ["EH_OCR_SOLO_CPU"] == "1"
+    (config.carpeta_datos() / "sesion_abierta").unlink()
+    monkeypatch.delenv("EH_OCR_SOLO_CPU")
+
+
+def test_error_de_la_grafica_pasa_al_procesador(escaneo):
+    """Si DirectML lanza un error, la página se lee igual con el procesador."""
+    import numpy as np
+
+    from eh_ocr.motores.rapid import MotorRapid
+
+    m = MotorRapid()
+    m._cargar()
+
+    class GraficaRota:
+        def __call__(self, *_a, **_k):
+            raise RuntimeError("UnicodeDecodeError del controlador")
+
+    m._libres.get_nowait()
+    m._libres.put(GraficaRota())
+    m.acelerador = "DirectML"
+    img = np.full((200, 600, 3), 255, np.uint8)
+    m.reconocer(img)  # no debe lanzar
+    assert m.acelerador == "CPU"
