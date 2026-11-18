@@ -24,6 +24,9 @@ tiene que ser claramente superior al de las apps de OCR gratuitas disponibles.
   - `eh-ocr-complemento-manuscritos-formulas.zip`: manuscritos y fórmulas. Se descomprime en
     `eh-ocr\complementos\` y eh-ocr lo detecta solo al iniciar. Sin internet ni instalación.
 - Actualizaciones: manuales, descargando el ZIP nuevo desde GitHub Releases
+- Equipos que bloquean `.exe` sin firma (AppLocker/control de aplicaciones): instalación sobre
+  Python con `instalar.py`, que toma modelos y Tesseract del ZIP y crea el acceso directo
+  (mismo mecanismo que txt2media). Decisión del 18/11/2026.
 
 ## Objetivo
 Convertir cualquier documento (PDF digital, PDF escaneado, imagen, foto de celular) en

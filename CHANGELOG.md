@@ -2,6 +2,9 @@
 
 ## 0.2.0 — Tablas y Excel
 
+- Instalador sobre Python (`instalar.py`) para equipos que bloquean `.exe` sin firma.
+- La carpeta `datos` de la autoprueba ya no viaja dentro del ZIP.
+
 Auditoría (no conformidades corregidas):
 - Página que supera el tiempo límite: ya no cuelga ni hace caer la app al terminar el documento.
 - Carpeta de datos sin permiso de escritura: se usa la carpeta local del usuario.

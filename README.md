@@ -21,6 +21,23 @@ Resultados: junto al original, como `nombre_ocr.pdf` (PDF con texto buscable) y
 Las **tablas** se detectan (con o sin bordes, también celdas combinadas) y salen como tablas
 reales en Word y Excel.
 
+## Equipos que bloquean el .exe (laptops corporativas)
+
+Si Windows responde «Acceso denegado» al abrir `eh-ocr.exe` (política de control de
+aplicaciones de la empresa), instala eh-ocr sobre Python, igual que txt2media:
+
+```bash
+git pull
+```
+
+```bash
+py -3.13 instalar.py "D:\PST\x"
+```
+
+(«D:\PST\x» = carpeta descomprimida del ZIP, la que tiene `eh-ocr.exe` y `_internal`). Copia
+los modelos y Tesseract del ZIP, prueba eh-ocr sin internet y crea el acceso directo **eh-ocr**
+en el Escritorio. Funciona igual que el `.exe`.
+
 ## Cómo funciona por dentro
 
 1. **Análisis de cada página**: ¿texto digital, escaneo o foto?
