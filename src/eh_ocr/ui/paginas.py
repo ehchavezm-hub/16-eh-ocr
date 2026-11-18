@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -151,16 +152,18 @@ class PaginaInicio(QWidget):
         t1 = tarjeta()
         l1 = QVBoxLayout(t1)
         l1.addWidget(etiqueta("<b>Formatos de salida</b>"))
-        grid = QHBoxLayout()
-        grid.setSpacing(16)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(18)
+        grid.setVerticalSpacing(6)
         self.checks: dict[str, QCheckBox] = {}
-        for clave, (nombre, _) in salidas.FORMATOS.items():
+        for k, (clave, (nombre, _)) in enumerate(salidas.FORMATOS.items()):
             c = QCheckBox(nombre)
             c.setChecked(clave in salidas.FORMATOS_POR_DEFECTO)
+            c.setMinimumWidth(c.sizeHint().width())  # nunca recortar el nombre
             c.toggled.connect(self._actualizar_formatos)
             self.checks[clave] = c
-            grid.addWidget(c)
-        grid.addStretch(1)
+            grid.addWidget(c, k // 3, k % 3)
+        grid.setColumnStretch(3, 1)
         l1.addLayout(grid)
         fila.addWidget(t1, 3)
         # Destino

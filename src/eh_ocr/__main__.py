@@ -16,6 +16,8 @@ def _configurar_registro() -> None:
     # El registro nunca guarda el contenido de los documentos: solo eventos y errores.
     manejador.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     logging.basicConfig(level=logging.INFO, handlers=[manejador])
+    for ruidoso in ("RapidOCR", "RapidTable", "rapid_layout", "rapid_table", "rapidocr"):
+        logging.getLogger(ruidoso).setLevel(logging.WARNING)
 
 
 def autoprueba(destino: Path) -> int:

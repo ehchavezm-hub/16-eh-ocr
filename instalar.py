@@ -12,7 +12,8 @@ Pasos:
   2. Instala eh-ocr y sus librerías (las de tablas, sin dependencias).
   3. Copia modelos y Tesseract del ZIP a recursos\\.
   4. Prueba eh-ocr sin internet (autoprueba).
-  5. Crea el acceso directo «eh-ocr» en el Escritorio (se abre sin ventana negra).
+  5. Crea los accesos directos «eh-ocr» (Escritorio) y «Abrir eh-ocr» (esta carpeta),
+     que se abren sin ventana negra.
 """
 
 from __future__ import annotations
@@ -142,12 +143,13 @@ def main() -> int:
     if os.name != "nt":
         print("  (solo en Windows)")
         return 0
-    lnk = escritorio() / "eh-ocr.lnk"
-    subprocess.run(
-        comando_acceso_directo(lnk, pythonw(), "-m eh_ocr", RAIZ, RECURSOS / "eh-ocr.ico"), check=True
-    )
-    print(f"  {lnk} ✓")
-    print("\nListo. Abre eh-ocr con doble clic en el acceso directo del Escritorio.")
+    for lnk in (escritorio() / "eh-ocr.lnk", RAIZ / "Abrir eh-ocr.lnk"):
+        subprocess.run(
+            comando_acceso_directo(lnk, pythonw(), "-m eh_ocr", RAIZ, RECURSOS / "eh-ocr.ico"), check=True
+        )
+        print(f"  {lnk} ✓")
+    print("\nListo. Abre eh-ocr con doble clic en «eh-ocr» del Escritorio o en «Abrir eh-ocr» de esta carpeta.")
+    print("No uses eh-ocr.exe en este equipo: la política de la empresa lo bloquea.")
     return 0
 
 

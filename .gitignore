@@ -11,3 +11,9 @@ datos/
 # Recursos que descarga scripts/preparar_build.py (van en el paquete, no en git)
 recursos/modelos/
 recursos/tesseract/
+
+# Copias del paquete .exe dentro del repositorio (no se versionan)
+/_internal/
+/eh-ocr.exe
+/LICENCIAS (*).md
+*.lnk
