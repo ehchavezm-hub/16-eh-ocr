@@ -24,6 +24,8 @@ CONFUSIONES = [
     ("1", "i"), ("I", "l"), ("l", "I"), ("5", "s"), ("8", "B"), ("6", "b"),
     ("ä", "a"), ("a", "ä"), ("o", "ö"), ("u", "ü"), ("n", "ñ"), ("e", "é"),
     ("a", "á"), ("i", "í"), ("o", "ó"), ("u", "ú"), ("c", "e"), ("e", "c"),
+    # acentos confundidos entre idiomas (p. ej. «Brúcke» por «Brücke»)
+    ("ú", "ü"), ("ü", "ú"), ("ó", "ö"), ("ö", "ó"), ("á", "ä"), ("ä", "á"),
 ]
 
 _DIGITOS_A_LETRAS = str.maketrans({"O": "0", "o": "0", "l": "1", "I": "1", "S": "5", "B": "8"})
@@ -82,6 +84,21 @@ class Diccionarios:
                     votos[i] += 1
         mejor = max(votos, key=votos.get)
         return mejor if votos[mejor] > 0 else ""
+
+    def idiomas_presentes(self, palabras: list[str], minimo: int = 3) -> list[str]:
+        """Idiomas que realmente aparecen en la página (por palabras que solo existen en ese
+        idioma). El principal va primero. Una página mezclada devuelve varios."""
+        exclusivas = {"es": 0, "en": 0, "de": 0}
+        for w in palabras[:600]:
+            p = normalizar(w)
+            if len(p) < 3 or _es_numero(p):
+                continue
+            en = [i for i in exclusivas if p in self._lista(i)]
+            if len(en) == 1:
+                exclusivas[en[0]] += 1
+        principal = self.detectar_idioma(palabras)
+        otros = [i for i, n in sorted(exclusivas.items(), key=lambda x: -x[1]) if n >= minimo and i != principal]
+        return ([principal] if principal else []) + otros
 
 
 @lru_cache(maxsize=1)

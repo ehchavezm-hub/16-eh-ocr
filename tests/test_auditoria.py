@@ -266,3 +266,22 @@ def test_tras_una_caida_se_queda_en_procesador(monkeypatch):
     assert principal._proteccion_caidas() is True  # y las siguientes siguen en CPU
     assert os.environ["EH_OCR_SOLO_CPU"] == "1"
     monkeypatch.delenv("EH_OCR_SOLO_CPU")
+
+
+def test_idiomas_presentes_en_pagina_mezclada():
+    """Regresión (CI): Tesseract leía solo en castellano una página con una línea en alemán."""
+    from eh_ocr.corrector import diccionarios
+
+    es = "En la ciudad de Lima se reunieron los representantes para revisar el avance del proyecto".split()
+    de = "Die Größe der Brücke überrascht über fünfzig Männer".split()
+    dic = diccionarios()
+    assert dic.idiomas_presentes(es) == ["es"]
+    assert set(dic.idiomas_presentes(es + de)) == {"es", "de"}  # el orden no importa a Tesseract
+
+
+def test_corrector_acentos_entre_idiomas():
+    from eh_ocr.corrector import corregir_palabra
+
+    p = Palabra("Brúcke", 0.8, (0, 0, 1, 1))
+    corregir_palabra(p)
+    assert p.texto == "Brücke"

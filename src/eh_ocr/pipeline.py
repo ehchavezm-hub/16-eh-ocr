@@ -270,7 +270,7 @@ def _a_original(lineas: list[Linea], t: preproceso.ImagenTrabajo) -> list[Linea]
 
 def _reconocer(base: preproceso.ImagenTrabajo, motores: Motores, rapido: bool) -> tuple[list[Linea], list[str]]:
     """1) RapidOCR (rápido) sobre la imagen y, si la confianza es baja, sobre otras versiones;
-    2) Tesseract UNA sola vez, sobre la mejor versión y solo en el idioma detectado; 3) votación.
+    2) Tesseract UNA sola vez, sobre la mejor versión y solo en los idiomas presentes; 3) votación.
     En modo rápido: solo RapidOCR sobre la imagen estándar."""
     usar_rapid = motores.rapid.disponible()
     variantes = ("estandar",) if rapido else preproceso.VARIANTES
@@ -289,8 +289,10 @@ def _reconocer(base: preproceso.ImagenTrabajo, motores: Motores, rapido: bool) -
     usados = [motores.rapid.nombre] if usar_rapid else []
     if rapido or not motores.tesseract.disponible():
         return _a_original(agrupar_en_lineas(mejor_pr), mejor_t), usados
-    idioma = diccionarios().detectar_idioma([p.texto for p in mejor_pr])
-    pt = motores.tesseract.reconocer(mejor_t.imagen, config.TESSERACT_POR_IDIOMA.get(idioma))
+    # Solo los idiomas presentes: una página en castellano lee rápido; una mezclada, con todos los suyos
+    idiomas = diccionarios().idiomas_presentes([p.texto for p in mejor_pr])
+    modelos = "+".join(config.TESSERACT_POR_IDIOMA[i] for i in idiomas) or None
+    pt = motores.tesseract.reconocer(mejor_t.imagen, modelos)
     usados.append(motores.tesseract.nombre)
     lineas = votar(mejor_pr, pt) if (mejor_pr and pt) else agrupar_en_lineas(mejor_pr or pt)
     return _a_original(lineas, mejor_t), usados
