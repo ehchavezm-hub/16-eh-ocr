@@ -106,9 +106,20 @@ class Motores:
 
 # --- Caché reanudable --------------------------------------------------------
 
+def firma_motores() -> str:
+    """Qué motores y modelos hay disponibles. Si cambia (p. ej. se instala Tesseract o los
+    modelos precisos), los documentos se vuelven a leer en vez de reutilizar resultados viejos."""
+    m = Motores.obtener()
+    et = tablas.ModelosTablas.obtener().estado
+    return (
+        f"rapid={m.rapid.disponible() and m.rapid.modelos}|tess={m.tesseract.disponible()}"
+        f"|lay={et['layout_preciso']}|est={et['estructuras']}"
+    )
+
+
 def id_trabajo(ruta: Path) -> str:
     st = Path(ruta).stat()
-    clave = f"{Path(ruta).resolve()}|{st.st_size}|{st.st_mtime_ns}|v{VERSION_CACHE}"
+    clave = f"{Path(ruta).resolve()}|{st.st_size}|{st.st_mtime_ns}|v{VERSION_CACHE}|{firma_motores()}"
     return hashlib.sha1(clave.encode("utf-8")).hexdigest()[:16]
 
 

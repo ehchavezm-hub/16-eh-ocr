@@ -158,3 +158,15 @@ def test_limpieza_de_trabajos_viejos(tmp_path):
     os.utime(viejo / "p00001.json", (hace_40_dias, hace_40_dias))
     assert limpiar_cache(30) == 1
     assert not viejo.exists() and nuevo.exists()
+
+
+def test_cache_se_invalida_si_cambian_los_motores(tmp_path, monkeypatch):
+    """Regresión: una página leída sin Tesseract se reutilizaba aunque luego Tesseract estuviera listo."""
+    from eh_ocr import pipeline
+
+    doc = tmp_path / "doc.pdf"
+    doc.write_bytes(b"%PDF")
+    monkeypatch.setattr(pipeline, "firma_motores", lambda: "rapid=small|tess=False")
+    antes = pipeline.id_trabajo(doc)
+    monkeypatch.setattr(pipeline, "firma_motores", lambda: "rapid=medium|tess=True")
+    assert pipeline.id_trabajo(doc) != antes

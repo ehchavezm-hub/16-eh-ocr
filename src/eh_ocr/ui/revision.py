@@ -142,7 +142,7 @@ class PaginaRevision(QWidget):
 
         der = tarjeta()
         ld = QVBoxLayout(der)
-        ld.addWidget(etiqueta("TEXTO RECONOCIDO — haz clic en una palabra para corregirla", "suave"))
+        ld.addWidget(etiqueta("TEXTO RECONOCIDO — haz clic en cualquier palabra para corregirla (las dudosas están en amarillo)", "suave"))
         self.texto = QTextEdit()
         self.texto.setReadOnly(True)
         self.texto.cursorPositionChanged.connect(self._clic_en_texto)
@@ -155,20 +155,26 @@ class PaginaRevision(QWidget):
         self.lbl_palabra.setTextFormat(Qt.TextFormat.RichText)
         lp.addWidget(self.lbl_palabra)
         fila = QHBoxLayout()
-        self.btn_aceptar = QPushButton("Aceptar")
+        self.btn_aceptar = QPushButton("Está bien así")
         self.btn_aceptar.setObjectName("primario")
         self.editor = QLineEdit()
-        self.editor.setPlaceholderText("Escribir otra…")
-        self.btn_cambiar = QPushButton("Cambiar")
+        self.editor.setPlaceholderText("Escribe la palabra correcta y pulsa Enter")
+        self.btn_cambiar = QPushButton("Corregir")
         fila.addWidget(self.btn_aceptar)
         fila.addWidget(self.editor, 1)
         fila.addWidget(self.btn_cambiar)
         lp.addLayout(fila)
+        fila2 = QHBoxLayout()
+        self.btn_aceptar_pagina = QPushButton("Dar por buenas todas las dudosas de esta página")
+        fila2.addWidget(self.btn_aceptar_pagina)
+        fila2.addStretch(1)
+        lp.addLayout(fila2)
         self.btn_aceptar.clicked.connect(self._aceptar)
         self.btn_cambiar.clicked.connect(self._cambiar)
         self.editor.returnPressed.connect(self._cambiar)
-        self.panel.hide()
-        ld.addWidget(self.panel)
+        self.btn_aceptar_pagina.clicked.connect(self._aceptar_pagina)
+        ld.addWidget(self.panel)  # siempre visible
+        self._sin_seleccion()
         cuerpo.addWidget(der)
         cuerpo.setSizes([600, 600])
         lay.addWidget(cuerpo, 1)
@@ -209,12 +215,16 @@ class PaginaRevision(QWidget):
         self.lbl_pagina.setText(f"Página <b>{n}</b> de {total}")
         self.btn_ant.setEnabled(n > 1)
         self.btn_sig.setEnabled(n < total)
-        self.panel.hide()
         self.actual = None
         self.vista._ajustar = True
         self._pintar_imagen()
         self._pintar_texto()
         self._actualizar_estado()
+        dudosas = self._pagina().dudosas
+        if dudosas:
+            self._seleccionar(dudosas[0])  # lista para corregir, sin buscarla
+        else:
+            self._sin_seleccion()
 
     def _pintar_imagen(self) -> None:
         escena = self.vista.scene()
@@ -299,17 +309,33 @@ class PaginaRevision(QWidget):
                 self._seleccionar(t.palabra)
                 return
 
+    def _sin_seleccion(self) -> None:
+        self.actual = None
+        self.lbl_palabra.setText(
+            "<b>Corrección</b><br>Haz clic en una palabra del texto o pulsa «Siguiente dudosa»."
+        )
+        self.btn_aceptar.setText("Está bien así")
+        for w in (self.btn_aceptar, self.btn_cambiar, self.editor):
+            w.setEnabled(False)
+        self.editor.clear()
+        hay = self.trabajo is not None and self.trabajo.resultado is not None and bool(self._pagina().dudosas)
+        self.btn_aceptar_pagina.setEnabled(hay)
+
     def _seleccionar(self, p: Palabra) -> None:
         self.actual = p
+        for w in (self.btn_aceptar, self.btn_cambiar, self.editor):
+            w.setEnabled(True)
+        self.btn_aceptar_pagina.setEnabled(bool(self._pagina().dudosas))
         alternativas = "".join(f"<br>{m} leyó: <b>{v}</b>" for m, v in p.alternativas.items())
         corregida = f"<br>Corregida automáticamente de: <b>{p.corregida_de}</b>" if p.corregida_de else ""
         estado = "Palabra dudosa" if p.dudosa else "Palabra"
         self.lbl_palabra.setText(
             f"<b>{estado} · confianza {p.confianza * 100:.0f} %</b>{alternativas}{corregida}"
         )
-        self.btn_aceptar.setText(f"Aceptar «{p.texto}»")
+        self.btn_aceptar.setText(f"Está bien: «{p.texto}»")
         self.editor.setText(p.texto)
-        self.panel.show()
+        self.editor.setFocus()
+        self.editor.selectAll()
         item = self.rects.get(id(p))
         if item is not None:
             self.vista.centerOn(item)
@@ -339,11 +365,24 @@ class PaginaRevision(QWidget):
         if r.estado == EstadoPagina.DUDOSA and not r.dudosas:
             r.estado = EstadoPagina.OK
         pipeline.guardar_cache(self.trabajo.ruta, r)
-        self.panel.hide()
         self._pintar_imagen()
         self._pintar_texto()
         self._actualizar_estado()
+        self._sin_seleccion()
         self.siguiente_dudosa()
+
+    def _aceptar_pagina(self) -> None:
+        r = self._pagina()
+        for p in r.dudosas:
+            p.dudosa = False
+            p.confianza = max(p.confianza, 0.99)
+        if r.estado == EstadoPagina.DUDOSA:
+            r.estado = EstadoPagina.OK
+        pipeline.guardar_cache(self.trabajo.ruta, r)
+        self._pintar_imagen()
+        self._pintar_texto()
+        self._actualizar_estado()
+        self._sin_seleccion()
 
     def _aceptar(self) -> None:
         if self.actual is not None:

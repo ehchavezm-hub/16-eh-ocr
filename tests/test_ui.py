@@ -52,3 +52,27 @@ def test_lista_no_procesa_hasta_pulsar_y_no_repite(app, tmp_path):
     v.cola._quitar()
     assert [t.ruta.name for t in tr.trabajos] == ["a.png"]
     v.close()
+
+
+def test_panel_de_correccion_siempre_visible(app, escaneo):
+    from eh_ocr.pipeline import procesar_documento
+    from eh_ocr.ui.trabajador import Estado
+    from eh_ocr.ui.ventana import VentanaPrincipal
+
+    v = VentanaPrincipal()
+    v.show()
+    v.agregar_archivos([escaneo])
+    t = v.trabajador.trabajos[0]
+    t.resultado = procesar_documento(escaneo)
+    pal = t.resultado.paginas[0].palabras[3]
+    pal.dudosa = True  # forzar una dudosa
+    t.estado = Estado.DUDOSO
+    v.abrir_revision(0)  # como al terminar un documento
+    rev = v.revision
+    assert rev.panel.isVisible()
+    assert rev.actual is pal  # la primera dudosa ya queda seleccionada
+    rev.editor.setText("CORREGIDA")
+    rev._cambiar()
+    assert pal.texto == "CORREGIDA" and not pal.dudosa
+    assert rev.panel.isVisible()
+    v.close()
