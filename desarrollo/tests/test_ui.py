@@ -111,12 +111,13 @@ def test_reprocesar_no_congela_la_ventana(app, escaneo):
     rev = v.revision
     rev.reprocesar_pagina()  # vuelve enseguida: trabaja en segundo plano
     assert rev.btn_reprocesar.text() == "Reprocesando…"
-    for _ in range(300):
+    import time
+
+    limite = time.monotonic() + 180  # en CI cargado puede tardar varias veces lo normal (~15 s)
+    while rev._reprocesando and time.monotonic() < limite:
         bucle = QEventLoop()
         QTimer.singleShot(100, bucle.quit)
         bucle.exec()
-        if not rev._reprocesando:
-            break
     assert rev.btn_reprocesar.text() == "Reprocesar página"
     assert "representantes" in rev._pagina().texto
     v.close()
