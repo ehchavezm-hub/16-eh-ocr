@@ -150,7 +150,8 @@ def main() -> int:
             comando_acceso_directo(lnk, pythonw(), "-m eh_ocr", RAIZ, RECURSOS / "eh-ocr.ico"), check=True
         )
         print(f"  {lnk} ✓")
-    print("\nListo. Abre eh-ocr con doble clic en «eh-ocr» del Escritorio o en «Abrir eh-ocr» de esta carpeta.")
+    print("\nListo. Abre eh-ocr con doble clic en «eh-ocr» del Escritorio, en «Abrir eh-ocr» o en «eh-ocr.pyw»")
+    print("de esta carpeta, o en PowerShell:  py -3.13 eh-ocr.pyw")
     print("No uses eh-ocr.exe en este equipo: la política de la empresa lo bloquea.")
     return 0
 
