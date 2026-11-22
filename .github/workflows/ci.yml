@@ -66,6 +66,15 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           EH_OCR_TESSERACT_INCLUIDO: "1"
         run: pytest -v
+      - name: Probar eh-ocr.cmd (lanzador de la terminal)
+        shell: cmd
+        env:
+          EH_OCR_SIN_PULL: "1"
+          EH_OCR_DATOS: ${{ runner.temp }}\eh-ocr-datos-cmd
+        run: |
+          call eh-ocr.cmd ayuda || exit /b 1
+          call eh-ocr.cmd autoprueba || exit /b 1
+          findstr /b "OK" "%TEMP%\eh-ocr-autoprueba.txt" || exit /b 1
       - name: Construir eh-ocr.exe
         run: pyinstaller desarrollo/empaquetado/eh-ocr.spec --noconfirm
       - name: Autoprueba del ejecutable (sin internet)
