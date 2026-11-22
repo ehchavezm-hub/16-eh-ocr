@@ -66,3 +66,6 @@ Push directo a `main` no está permitido en las sesiones: se trabaja en la rama 
   directo). Tesseract firmado sí corre.
 - UI: todo texto de archivos/mensajes en HTML pasa por `html.escape`; tareas largas fuera del hilo
   de la ventana.
+- UI SIEMPRE en tema claro (`estilo.CLARA`, `forzar_tema_claro`): decisión del usuario, aunque Windows
+  esté en oscuro. Números con coma decimal (`estilo.num`/`pct`). Íconos dibujados con QPainter
+  (`estilo.icono`), sin archivos ni complementos de imagen. Revisar ventanas en 980×640 (mínimo).

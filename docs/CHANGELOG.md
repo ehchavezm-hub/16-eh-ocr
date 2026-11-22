@@ -1,5 +1,22 @@
 # Cambios
 
+## Sin publicar — interfaz revisada
+
+- Siempre en tema claro, aunque Windows esté en modo oscuro (también diálogos y barras).
+- Logotipo como en el mockup; íconos del menú dibujados (iguales en Python y en el .exe).
+- Atajos: Ctrl+1…4 (pantallas), Ctrl+O (elegir archivos); en Revisar: F3 siguiente dudosa,
+  Ctrl+Enter «Está bien», Ctrl+S guardar, Ctrl+RePág/AvPág páginas, Ctrl+± y Ctrl+0 zoom.
+- Revisar: la barra pasa a dos filas en ventanas angostas (los botones ya no se cortan);
+  botón «Ajustar»; cuadro de corrección a todo el ancho; «Aceptar toda la página».
+- Lista: estados cortos y con color (✓ verde, ⚠ ámbar, ✕ rojo); detalle completo al pasar el ratón;
+  números alineados; «Pausar», «Cancelar» y «Revisar» solo activos cuando corresponde.
+- Estado del equipo con puntos de color (verde listo, naranja con menos precisión).
+- Casillas visibles y con marca clara; foco visible al usar Tab.
+- Números con coma decimal (99,7 %); «1 palabra dudosa» en singular.
+- Informes: tabla con encabezado y columnas alineadas; ya no lista los pendientes.
+- Seguridad: el texto del documento se escapa en el panel de corrección.
+- Carpeta ordenada: raíz con lo necesario; `eh-ocr.cmd` (terminal) y `eh-ocr.pyw` (doble clic).
+
 ## 0.2.0 — Tablas y Excel
 
 Estabilidad y compatibilización (laptop corporativa con gráfica híbrida NVIDIA):

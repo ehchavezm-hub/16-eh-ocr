@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -32,6 +33,7 @@ from PySide6.QtWidgets import (
 from .. import salidas
 from ..documento import EXT_ADMITIDAS, EXT_HEIC
 from ..modelo import EstadoPagina
+from .estilo import CLARA, Paleta, num, pct, pixmap_icono
 from .trabajador import Estado, Trabajador
 
 
@@ -74,16 +76,22 @@ def abrir_en_explorador(ruta: Path) -> bool:
 class ZonaArrastre(QFrame):
     archivos_soltados = Signal(list)
 
-    def __init__(self) -> None:
+    def __init__(self, paleta: Paleta = CLARA) -> None:
         super().__init__()
         self.setObjectName("zona")
         self.setAcceptDrops(True)
         lay = QVBoxLayout(self)
         lay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.setSpacing(12)
-        icono = etiqueta("⬆", "zonaTitulo")
+        icono = QLabel()
+        icono.setObjectName("zonaIcono")
+        icono.setFixedSize(72, 72)
         icono.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icono.setStyleSheet("font-size: 28pt;")
+        icono.setPixmap(pixmap_icono("subir", paleta.acento, 34, 1.8))
+        fila_icono = QHBoxLayout()
+        fila_icono.addStretch(1)
+        fila_icono.addWidget(icono)
+        fila_icono.addStretch(1)
         titulo = etiqueta("Arrastra aquí archivos o carpetas", "zonaTitulo")
         titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         sub = etiqueta("PDF · JPG · PNG · TIFF · BMP · WEBP — sin límite de páginas", "suave")
@@ -91,11 +99,13 @@ class ZonaArrastre(QFrame):
         botones = QHBoxLayout()
         botones.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.btn_archivos = QPushButton("Elegir archivos")
+        self.btn_archivos.setToolTip("Elegir archivos (Ctrl+O)")
         self.btn_archivos.setObjectName("primario")
         self.btn_carpeta = QPushButton("Elegir carpeta")
         botones.addWidget(self.btn_archivos)
         botones.addWidget(self.btn_carpeta)
-        for w in (icono, titulo, sub):
+        lay.addLayout(fila_icono)
+        for w in (titulo, sub):
             lay.addWidget(w)
         lay.addLayout(botones)
         self.btn_archivos.clicked.connect(self._elegir_archivos)
@@ -135,7 +145,7 @@ class ZonaArrastre(QFrame):
 class PaginaInicio(QWidget):
     archivos_elegidos = Signal(list)
 
-    def __init__(self, trabajador: Trabajador) -> None:
+    def __init__(self, trabajador: Trabajador, paleta: Paleta = CLARA) -> None:
         super().__init__()
         self.trabajador = trabajador
         lay = QVBoxLayout(self)
@@ -144,7 +154,10 @@ class PaginaInicio(QWidget):
         lay.addWidget(etiqueta("Convertir documentos a texto", "titulo"))
         lay.addWidget(etiqueta("PDF, escaneos y fotos. Todo se procesa en este equipo, sin internet.", "subtitulo"))
 
-        self.zona = ZonaArrastre()
+        self.zona = ZonaArrastre(paleta)
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        QShortcut(QKeySequence("Ctrl+O"), self, activated=self.zona._elegir_archivos)
         self.zona.archivos_soltados.connect(self.archivos_elegidos)
         lay.addWidget(self.zona, 1)
 
@@ -153,7 +166,9 @@ class PaginaInicio(QWidget):
         # Formatos
         t1 = tarjeta()
         l1 = QVBoxLayout(t1)
-        l1.addWidget(etiqueta("<b>Formatos de salida</b>"))
+        l1.setContentsMargins(16, 14, 16, 14)
+        l1.setSpacing(10)
+        l1.addWidget(etiqueta("FORMATOS DE SALIDA", "seccion"))
         grid = QGridLayout()
         grid.setHorizontalSpacing(18)
         grid.setVerticalSpacing(6)
@@ -171,16 +186,21 @@ class PaginaInicio(QWidget):
         # Destino
         t2 = tarjeta()
         l2 = QVBoxLayout(t2)
-        l2.addWidget(etiqueta("<b>Guardar en</b>"))
+        l2.setContentsMargins(16, 14, 16, 14)
+        l2.setSpacing(10)
+        l2.addWidget(etiqueta("GUARDAR EN", "seccion"))
         destino = QHBoxLayout()
         self.lbl_destino = etiqueta("Junto al documento original", envolver=True)
+        self.lbl_destino.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         btn_cambiar = QPushButton("Cambiar…")
-        btn_original = QPushButton("Junto al original")
+        self.btn_original = QPushButton("Volver al original")
+        self.btn_original.setToolTip("Guardar los resultados junto a cada documento original")
+        self.btn_original.hide()  # solo tiene sentido si se eligió otra carpeta
         btn_cambiar.clicked.connect(self._cambiar_destino)
-        btn_original.clicked.connect(self._destino_original)
+        self.btn_original.clicked.connect(self._destino_original)
         destino.addWidget(self.lbl_destino, 1)
         destino.addWidget(btn_cambiar)
-        destino.addWidget(btn_original)
+        destino.addWidget(self.btn_original)
         l2.addLayout(destino)
         l2.addWidget(etiqueta("Idioma: detección automática (castellano · inglés · alemán)", "suave"))
         fila.addWidget(t2, 2)
@@ -196,11 +216,15 @@ class PaginaInicio(QWidget):
         ruta = QFileDialog.getExistingDirectory(self, "Carpeta para los resultados")
         if ruta:
             self.trabajador.carpeta = Path(ruta)
-            self.lbl_destino.setText(ruta)
+            self.lbl_destino.setText(str(Path(ruta)))
+            self.lbl_destino.setToolTip(str(Path(ruta)))
+            self.btn_original.show()
 
     def _destino_original(self) -> None:
         self.trabajador.carpeta = None
         self.lbl_destino.setText("Junto al documento original")
+        self.lbl_destino.setToolTip("")
+        self.btn_original.hide()
 
 
 # --- Cola y lotes -------------------------------------------------------------
@@ -211,9 +235,10 @@ COLUMNAS = ("", "Archivo", "Estado", "Páginas", "Confianza")
 class PaginaCola(QWidget):
     revisar = Signal(int)
 
-    def __init__(self, trabajador: Trabajador) -> None:
+    def __init__(self, trabajador: Trabajador, paleta: Paleta = CLARA) -> None:
         super().__init__()
         self.trabajador = trabajador
+        self.paleta = paleta
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
         lay.setSpacing(14)
@@ -237,8 +262,10 @@ class PaginaCola(QWidget):
 
         t = tarjeta()
         lt = QVBoxLayout(t)
+        lt.setContentsMargins(16, 12, 16, 14)
+        lt.setSpacing(8)
         fila = QHBoxLayout()
-        self.lbl_progreso = etiqueta("<b>Progreso total</b>")
+        self.lbl_progreso = etiqueta("Progreso: todavía no empieza. Marca archivos y pulsa «Procesar seleccionados».", "suave")
         fila.addWidget(self.lbl_progreso, 1)
         lt.addLayout(fila)
         self.barra = QProgressBar()
@@ -276,6 +303,8 @@ class PaginaCola(QWidget):
         cab_t.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         cab_t.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         cab_t.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        cab_t.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.tabla.verticalHeader().setDefaultSectionSize(34)
         cab_t.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         cab_t.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla.cellDoubleClicked.connect(self._doble_clic)
@@ -284,13 +313,15 @@ class PaginaCola(QWidget):
 
         lateral = tarjeta()
         ll = QVBoxLayout(lateral)
-        ll.addWidget(etiqueta("<b>Ahora</b>"))
-        self.lbl_ahora = etiqueta("—", envolver=True)
+        ll.setContentsMargins(14, 14, 14, 14)
+        ll.addWidget(etiqueta("AHORA", "seccion"))
+        self.lbl_ahora = etiqueta("Nada en proceso.", "suave", envolver=True)
         self.lbl_ahora.setTextFormat(Qt.TextFormat.RichText)
         self.lbl_ahora.setAlignment(Qt.AlignmentFlag.AlignTop)
         ll.addWidget(self.lbl_ahora, 1)
         self.btn_revisar = QPushButton("Revisar documento")
         self.btn_revisar.setObjectName("primario")
+        self.btn_revisar.setToolTip("Revisa el documento elegido en la lista (o el último terminado). También con doble clic en la fila.")
         self.btn_abrir = QPushButton("Abrir carpeta de resultados")
         ll.addWidget(self.btn_revisar)
         ll.addWidget(self.btn_abrir)
@@ -344,11 +375,19 @@ class PaginaCola(QWidget):
             filas = [i for i, t in enumerate(self.trabajador.trabajos) if not t.marcado]
         self.trabajador.quitar(filas)
         self.sincronizar()
+        if not self.trabajador.ocupado:
+            self.lbl_ahora.setText("Nada en proceso.")
 
     def _actualizar_botones(self) -> None:
         n = len(self.trabajador.marcados_procesables())
         total = len(self.trabajador.trabajos)
+        ocupado = self.trabajador.ocupado
         self.btn_procesar.setEnabled(n > 0)
+        self.btn_pausa.setEnabled(ocupado)
+        self.btn_cancelar.setEnabled(ocupado)
+        hay_terminados = any(t.terminado for t in self.trabajador.trabajos)
+        self.btn_revisar.setEnabled(hay_terminados)
+        self.btn_abrir.setEnabled(total > 0)
         self.btn_procesar.setText(f"Procesar seleccionados ({n})" if n else "Procesar seleccionados")
         marcados = sum(1 for t in self.trabajador.trabajos if t.marcado)
         self.lbl_marcados.setText(f"{marcados} de {total} marcados" if total else "")
@@ -415,13 +454,21 @@ class PaginaCola(QWidget):
         estado = t.estado.value
         if t.estado == Estado.PROCESANDO:
             if t.paginas:
-                pct = int(100 * t.pagina_actual / t.paginas)
-                estado = f"● {t.pagina_actual} de {t.paginas} páginas ({pct} %)"
+                estado = f"{t.pagina_actual} de {t.paginas} páginas ({int(100 * t.pagina_actual / t.paginas)} %)"
             else:
-                estado = "● Abriendo el documento…"
-        elif t.mensaje and t.estado in (Estado.DUDOSO, Estado.ERROR, Estado.NO_ADMITIDO, Estado.CANCELADO):
-            estado = f"{t.estado.value}: {t.mensaje}"
-        prefijo = {Estado.LISTO: "✓ ", Estado.DUDOSO: "⚠ ", Estado.PROTEGIDO: "🔒 "}.get(t.estado, "")
+                estado = "Abriendo el documento…"
+        elif t.estado == Estado.DUDOSO and t.mensaje:
+            estado = f"Revisar: {t.mensaje}"
+        prefijo = {
+            Estado.LISTO: "✓ ", Estado.DUDOSO: "⚠ ", Estado.PROTEGIDO: "🔒 ", Estado.PROCESANDO: "● ",
+            Estado.ERROR: "✕ ", Estado.NO_ADMITIDO: "✕ ",
+        }.get(t.estado, "")
+        p = self.paleta
+        color = {
+            Estado.LISTO: p.ok, Estado.DUDOSO: p.aviso, Estado.PROCESANDO: p.acento, Estado.ERROR: p.error,
+            Estado.NO_ADMITIDO: p.error, Estado.CANCELADO: p.texto_suave, Estado.COLA: p.texto_suave,
+        }.get(t.estado)
+        detalle = f"{t.estado.value}: {t.mensaje}" if t.mensaje else t.estado.value
         self.tabla.blockSignals(True)
         casilla = QTableWidgetItem()
         bloqueada = t.estado in (Estado.PROCESANDO, Estado.COLA, Estado.NO_ADMITIDO)
@@ -433,11 +480,15 @@ class PaginaCola(QWidget):
             t.ruta.name,
             prefijo + estado,
             str(t.paginas) if t.paginas else "—",
-            f"{t.confianza * 100:.1f} %" if t.confianza is not None else "—",
+            pct(t.confianza) if t.confianza is not None else "—",
         )
         for c, v in enumerate(valores, start=1):
             item = QTableWidgetItem(v)
-            item.setToolTip(str(t.ruta) if c == 1 else v)
+            item.setToolTip(str(t.ruta) if c == 1 else (detalle if c == 2 else v))
+            if c == 2 and color:
+                item.setForeground(QBrush(QColor(color)))
+            if c >= 3:
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.tabla.setItem(i, c, item)
         self.tabla.blockSignals(False)
         if t.estado == Estado.PROCESANDO:
@@ -470,11 +521,11 @@ class PaginaCola(QWidget):
             motores = d.get("motores", [])
             lineas += [
                 "",
-                f"Última terminada: página {d.get('pagina')} ({d.get('segundos', 0):.0f} s)",
+                f"Última terminada: página {d.get('pagina')} ({num(d.get('segundos', 0), 0)} s)",
                 f"Tipo: {html.escape(str(d.get('tipo', '—')))}",
                 f"Preproceso: {html.escape(str(d.get('pasos') or 'ninguno'))}",
                 f"Motores: {html.escape(' + '.join(motores)) or '—'}{' (votación)' if len(motores) > 1 else ''}",
-                f"Confianza: {d.get('confianza', 0) * 100:.1f} %",
+                f"Confianza: {pct(d.get('confianza', 0))}",
                 f"Acelerador: {html.escape(str(d.get('acelerador', 'CPU')))}",
             ]
         return "<br>".join(lineas)
@@ -485,59 +536,80 @@ class PaginaCola(QWidget):
         else:
             self.barra.setRange(0, max(total, 1))
             self.barra.setValue(hechas)
-        pct = int(100 * hechas / total) if total else 0
+        porcentaje = int(100 * hechas / total) if total else 0
         restantes = [t.restante_s() for t in self.trabajador.trabajos if t.estado == Estado.PROCESANDO]
         eta = f" · tiempo restante del documento actual: {self._duracion(restantes[0])}" if restantes else ""
-        self.lbl_progreso.setText(f"<b>Progreso total: {hechas} de {total} páginas ({pct} %)</b>{eta}")
+        self.lbl_progreso.setText(f"<b>Progreso total: {hechas} de {total} páginas ({porcentaje} %)</b>{eta}")
+        self._actualizar_botones()
 
     def _terminada(self) -> None:
         self.btn_pausa.setChecked(False)
         hechas, total = self.trabajador.paginas_totales()
         self.barra.setRange(0, max(total, 1))
         self.barra.setValue(hechas)
-        self.lbl_ahora.setText("Procesamiento terminado.")
+        self.lbl_ahora.setText("Procesamiento terminado. Doble clic en un documento para revisarlo.")
+        self.lbl_progreso.setText(f"<b>Terminado: {hechas} de {total} páginas</b>")
         self._actualizar_botones()
 
 
 # --- Informes -------------------------------------------------------------------
 
 class PaginaInformes(QWidget):
-    def __init__(self, trabajador: Trabajador) -> None:
+    def __init__(self, trabajador: Trabajador, paleta: Paleta = CLARA) -> None:
         super().__init__()
         self.trabajador = trabajador
+        self.paleta = paleta
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
         lay.setSpacing(14)
         lay.addWidget(etiqueta("Informes", "titulo"))
         lay.addWidget(etiqueta("Qué motor leyó cada página, con qué confianza y en cuánto tiempo.", "subtitulo"))
         self.texto = QTextBrowser()
+        self.texto.document().setDocumentMargin(14)
         lay.addWidget(self.texto, 1)
 
     def actualizar(self) -> None:
+        p = self.paleta
+        estilo = (
+            f"<style>h3 {{ margin: 18px 0 4px 0; }} .suave {{ color: {p.texto_suave}; }}"
+            f" th {{ background: {p.lateral}; color: {p.texto_suave}; font-weight: 600; padding: 6px 10px; text-align: left; }}"
+            f" td {{ padding: 5px 10px; border-bottom: 1px solid {p.borde}; }} .num {{ text-align: right; }}"
+            f" .aviso {{ color: {p.aviso}; }} .error {{ color: {p.error}; }}</style>"
+        )
         partes: list[str] = []
         for t in self.trabajador.trabajos:
             if t.resultado is None:
-                if t.estado not in (Estado.COLA, Estado.PROCESANDO):
-                    partes.append(f"<h3>{html.escape(t.ruta.name)}</h3><p>{html.escape(t.estado.value)}. {html.escape(t.mensaje)}</p>")
+                if t.estado not in (Estado.COLA, Estado.PROCESANDO, Estado.PENDIENTE):
+                    clase = "error" if t.estado in (Estado.ERROR, Estado.NO_ADMITIDO) else "suave"
+                    partes.append(
+                        f"<h3>{html.escape(t.ruta.name)}</h3><p class='{clase}'>{html.escape(t.estado.value)}"
+                        f"{'. ' + html.escape(t.mensaje) if t.mensaje else ''}</p>"
+                    )
                 continue
             r = t.resultado
+            dudosas = ", ".join(map(str, r.paginas_dudosas)) or "ninguna"
+            no_proc = ", ".join(map(str, r.paginas_no_procesadas)) or "ninguna"
             partes.append(f"<h3>{html.escape(t.ruta.name)}</h3>")
             partes.append(
-                f"<p>Confianza media: <b>{r.confianza_media * 100:.1f} %</b> · Tiempo: {r.segundos:.1f} s · "
-                f"Páginas dudosas: {', '.join(map(str, r.paginas_dudosas)) or 'ninguna'} · "
-                f"No procesadas: {', '.join(map(str, r.paginas_no_procesadas)) or 'ninguna'}</p>"
+                f"<p class='suave'>Confianza media: <b>{pct(r.confianza_media)}</b> · Tiempo: {num(r.segundos)} s · "
+                f"Páginas dudosas: <span class='{'aviso' if r.paginas_dudosas else ''}'>{dudosas}</span> · "
+                f"No procesadas: <span class='{'error' if r.paginas_no_procesadas else ''}'>{no_proc}</span></p>"
             )
-            partes.append("<table cellpadding='4'><tr><th align='left'>Pág.</th><th align='left'>Tipo</th>"
-                        "<th align='left'>Motores</th><th align='left'>Confianza</th><th align='left'>Tablas</th><th align='left'>Dudosas</th>"
-                        "<th align='left'>Tiempo</th></tr>")
-            for p in r.paginas:
-                estado = "no procesada: " + html.escape(p.mensaje) if p.estado == EstadoPagina.NO_PROCESADA else ""
+            partes.append("<table cellspacing='0' width='100%'><tr><th>Pág.</th><th>Tipo</th>"
+                          "<th>Motores</th><th class='num'>Confianza</th><th class='num'>Tablas</th>"
+                          "<th class='num'>Dudosas</th><th class='num'>Tiempo</th></tr>")
+            for pg in r.paginas:
+                nota = (" <span class='error'>(no procesada: " + html.escape(pg.mensaje) + ")</span>"
+                        if pg.estado == EstadoPagina.NO_PROCESADA else "")
                 partes.append(
-                    f"<tr><td>{p.perfil.numero}</td><td>{p.perfil.tipo.value}</td>"
-                    f"<td>{html.escape(' + '.join(p.motores)) or '—'}</td><td>{p.confianza_media * 100:.1f} %</td><td>{len(p.tablas)}</td>"
-                    f"<td>{len(p.dudosas)} {estado}</td><td>{p.segundos:.1f} s</td></tr>"
+                    f"<tr><td>{pg.perfil.numero}</td><td>{pg.perfil.tipo.value}{nota}</td>"
+                    f"<td>{html.escape(' + '.join(pg.motores)) or '—'}</td><td class='num'>{pct(pg.confianza_media)}</td>"
+                    f"<td class='num'>{len(pg.tablas)}</td>"
+                    f"<td class='num'><span class='{'aviso' if pg.dudosas else ''}'>{len(pg.dudosas)}</span></td>"
+                    f"<td class='num'>{num(pg.segundos)} s</td></tr>"
                 )
             partes.append("</table>")
             if t.salidas:
-                partes.append("<p>Resultados: " + " · ".join(html.escape(s.name) for s in t.salidas) + "</p>")
-        self.texto.setHtml("".join(partes) or "<p>Aún no hay documentos procesados.</p>")
+                partes.append("<p class='suave'>Resultados: " + " · ".join(html.escape(s.name) for s in t.salidas) + "</p>")
+        self.texto.setHtml(estilo + ("".join(partes) or "<p class='suave'>Aún no hay documentos procesados. "
+                                     "Cuando termine uno, aquí verás qué motor leyó cada página, con qué confianza y en cuánto tiempo.</p>"))

@@ -2,15 +2,28 @@
 
 from __future__ import annotations
 
+import html
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap, QTextCharFormat, QTextCursor
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QImage,
+    QKeySequence,
+    QPainter,
+    QPen,
+    QPixmap,
+    QShortcut,
+    QTextCharFormat,
+    QTextCursor,
+)
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsPixmapItem,
+    QGridLayout,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsView,
@@ -27,7 +40,7 @@ from PySide6.QtWidgets import (
 from .. import pipeline, salidas
 from ..documento import Documento
 from ..modelo import EstadoPagina, Palabra, ResultadoPagina
-from .estilo import Paleta
+from .estilo import Paleta, num, pct
 from .paginas import abrir_en_explorador, etiqueta, tarjeta
 from .trabajador import Estado, Trabajador
 
@@ -100,34 +113,75 @@ class PaginaRevision(QWidget):
         lay.setContentsMargins(20, 14, 20, 14)
         lay.setSpacing(10)
 
-        barra = QHBoxLayout()
-        btn_volver = QPushButton("← Volver a la lista")
+        # Barra en dos grupos: si la ventana es angosta, las acciones bajan a una segunda fila
+        # (antes los botones se cortaban: «olver a la l…»).
+        self.grupo_nav = QWidget()
+        nav = QHBoxLayout(self.grupo_nav)
+        nav.setContentsMargins(0, 0, 0, 0)
+        btn_volver = QPushButton("← Lista")
+        btn_volver.setToolTip("Volver a la lista de documentos (Ctrl+2)")
         btn_volver.clicked.connect(self.volver)
         self.btn_ant = QPushButton("‹")
         self.btn_ant.setAccessibleName("Página anterior")
+        self.btn_ant.setToolTip("Página anterior (Ctrl+RePág)")
         self.btn_sig = QPushButton("›")
         self.btn_sig.setAccessibleName("Página siguiente")
+        self.btn_sig.setToolTip("Página siguiente (Ctrl+AvPág)")
         self.lbl_pagina = etiqueta("Página — de —")
         btn_menos = QPushButton("−")
         btn_menos.setAccessibleName("Alejar")
+        btn_menos.setToolTip("Alejar (Ctrl+−)")
         btn_mas = QPushButton("+")
         btn_mas.setAccessibleName("Acercar")
+        btn_mas.setToolTip("Acercar (Ctrl++). También Ctrl + rueda del ratón")
+        btn_ajustar = QPushButton("Ajustar")
+        btn_ajustar.setToolTip("Ver la página completa (Ctrl+0)")
+        for w in (btn_volver, self.btn_ant, self.lbl_pagina, self.btn_sig, btn_menos, btn_mas, btn_ajustar):
+            nav.addWidget(w)
+        for w in (self.btn_ant, self.btn_sig, btn_menos, btn_mas):
+            w.setFixedWidth(40)
+
+        self.grupo_acciones = QWidget()
+        acc = QHBoxLayout(self.grupo_acciones)
+        acc.setContentsMargins(0, 0, 0, 0)
+        self.btn_reprocesar = QPushButton("Reprocesar página")
+        self.btn_reprocesar.setToolTip("Vuelve a leer esta página en segundo plano")
         self.btn_dudosa = QPushButton("Siguiente dudosa")
         self.btn_dudosa.setObjectName("dudosa")
-        self.btn_reprocesar = QPushButton("Reprocesar página")
+        self.btn_dudosa.setToolTip("Ir a la siguiente palabra dudosa (F3)")
         self.btn_guardar = QPushButton("Guardar resultados")
         self.btn_guardar.setObjectName("primario")
-        for w in (btn_volver, self.btn_ant, self.lbl_pagina, self.btn_sig, btn_menos, btn_mas):
-            barra.addWidget(w)
-        barra.addStretch(1)
+        self.btn_guardar.setToolTip("Guardar PDF, Word y los demás formatos con las correcciones (Ctrl+S)")
         for w in (self.btn_reprocesar, self.btn_dudosa, self.btn_guardar):
-            barra.addWidget(w)
-        lay.addLayout(barra)
+            acc.addWidget(w)
+
+        self.barra = QGridLayout()
+        self.barra.setContentsMargins(0, 0, 0, 0)
+        self.barra.setHorizontalSpacing(12)
+        self.barra.setVerticalSpacing(8)
+        self._dos_filas: bool | None = None
+        self._acomodar_barra(dos_filas=False)
+        lay.addLayout(self.barra)
 
         self.btn_ant.clicked.connect(lambda: self.ir_a_pagina(self.num_pagina - 1))
         self.btn_sig.clicked.connect(lambda: self.ir_a_pagina(self.num_pagina + 1))
         btn_menos.clicked.connect(lambda: self.vista.zoom(1 / 1.2))
         btn_mas.clicked.connect(lambda: self.vista.zoom(1.2))
+        btn_ajustar.clicked.connect(lambda: self.vista.ajustar())
+        # Atajos: solo cuando esta pantalla está a la vista
+        for tecla, accion in (
+            ("F3", self.siguiente_dudosa),
+            ("Ctrl+S", self.guardar),
+            ("Ctrl+Return", self._aceptar),
+            ("Ctrl+PgUp", lambda: self.ir_a_pagina(self.num_pagina - 1)),
+            ("Ctrl+PgDown", lambda: self.ir_a_pagina(self.num_pagina + 1)),
+            ("Ctrl++", lambda: self.vista.zoom(1.2)),
+            ("Ctrl+=", lambda: self.vista.zoom(1.2)),
+            ("Ctrl+-", lambda: self.vista.zoom(1 / 1.2)),
+            ("Ctrl+0", lambda: self.vista.ajustar()),
+        ):
+            atajo = QShortcut(QKeySequence(tecla), self, activated=accion)
+            atajo.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         self.btn_dudosa.clicked.connect(self.siguiente_dudosa)
         self.btn_guardar.clicked.connect(self.guardar)
         self.btn_reprocesar.clicked.connect(self.reprocesar_pagina)
@@ -136,7 +190,8 @@ class PaginaRevision(QWidget):
         cuerpo = QSplitter()
         izq = tarjeta()
         li = QVBoxLayout(izq)
-        self.lbl_original = etiqueta("ORIGINAL", "suave")
+        li.setContentsMargins(12, 12, 12, 12)
+        self.lbl_original = etiqueta("ORIGINAL", "seccion")
         li.addWidget(self.lbl_original)
         self.vista = VistaImagen()
         li.addWidget(self.vista, 1)
@@ -144,7 +199,9 @@ class PaginaRevision(QWidget):
 
         der = tarjeta()
         ld = QVBoxLayout(der)
-        ld.addWidget(etiqueta("TEXTO RECONOCIDO — haz clic en cualquier palabra para corregirla (las dudosas están en amarillo)", "suave"))
+        ld.setContentsMargins(12, 12, 12, 12)
+        ld.addWidget(etiqueta("TEXTO RECONOCIDO", "seccion"))
+        ld.addWidget(etiqueta("Haz clic en cualquier palabra para corregirla. Las dudosas están en amarillo.", "suave", envolver=True))
         self.texto = QTextEdit()
         self.texto.setReadOnly(True)
         self.texto.cursorPositionChanged.connect(self._clic_en_texto)
@@ -156,18 +213,22 @@ class PaginaRevision(QWidget):
         self.lbl_palabra = etiqueta("", envolver=True)
         self.lbl_palabra.setTextFormat(Qt.TextFormat.RichText)
         lp.addWidget(self.lbl_palabra)
-        fila = QHBoxLayout()
         self.btn_aceptar = QPushButton("Está bien así")
         self.btn_aceptar.setObjectName("primario")
+        self.btn_aceptar.setToolTip("Dejar la palabra como está y pasar a la siguiente dudosa (Ctrl+Enter)")
         self.editor = QLineEdit()
         self.editor.setPlaceholderText("Escribe la palabra correcta y pulsa Enter")
+        self.editor.setMinimumWidth(160)
         self.btn_cambiar = QPushButton("Corregir")
-        fila.addWidget(self.btn_aceptar)
+        self.btn_cambiar.setToolTip("Guardar la palabra escrita y pasar a la siguiente dudosa (Enter)")
+        fila = QHBoxLayout()  # escribir la corrección: el cuadro ocupa todo el ancho disponible
         fila.addWidget(self.editor, 1)
         fila.addWidget(self.btn_cambiar)
         lp.addLayout(fila)
         fila2 = QHBoxLayout()
-        self.btn_aceptar_pagina = QPushButton("Dar por buenas todas las dudosas de esta página")
+        self.btn_aceptar_pagina = QPushButton("Aceptar toda la página")
+        self.btn_aceptar_pagina.setToolTip("Dar por buenas todas las palabras dudosas de esta página")
+        fila2.addWidget(self.btn_aceptar)
         fila2.addWidget(self.btn_aceptar_pagina)
         fila2.addStretch(1)
         lp.addLayout(fila2)
@@ -181,8 +242,26 @@ class PaginaRevision(QWidget):
         cuerpo.setSizes([600, 600])
         lay.addWidget(cuerpo, 1)
 
-        self.lbl_estado = etiqueta("", "suave")
+        self.lbl_estado = etiqueta("", "suave", envolver=True)
         lay.addWidget(self.lbl_estado)
+
+    # --- barra adaptable --------------------------------------------------------
+    def _acomodar_barra(self, dos_filas: bool) -> None:
+        if dos_filas == self._dos_filas:
+            return
+        self._dos_filas = dos_filas
+        self.barra.removeWidget(self.grupo_nav)
+        self.barra.removeWidget(self.grupo_acciones)
+        self.barra.addWidget(self.grupo_nav, 0, 0, Qt.AlignmentFlag.AlignLeft)
+        if dos_filas:
+            self.barra.addWidget(self.grupo_acciones, 1, 0, Qt.AlignmentFlag.AlignRight)
+        else:
+            self.barra.addWidget(self.grupo_acciones, 0, 1, Qt.AlignmentFlag.AlignRight)
+
+    def resizeEvent(self, e) -> None:  # noqa: N802
+        super().resizeEvent(e)
+        necesario = self.grupo_nav.sizeHint().width() + self.grupo_acciones.sizeHint().width() + 60
+        self._acomodar_barra(self.width() < necesario)
 
     # --- carga ---------------------------------------------------------------
     def olvidar(self) -> None:
@@ -270,7 +349,7 @@ class PaginaRevision(QWidget):
                 self.rects[id(p)] = item
         self.lbl_original.setText(
             f"ORIGINAL ({r.perfil.tipo.value}"
-            f"{f', enderezado {r.perfil.inclinacion:+.1f}°' if r.perfil.inclinacion else ''})"
+            f"{f', enderezado {num(r.perfil.inclinacion)}°' if r.perfil.inclinacion else ''})"
         )
         if self.vista._ajustar:
             self.vista.ajustar()
@@ -310,8 +389,8 @@ class PaginaRevision(QWidget):
         self.btn_dudosa.setEnabled(bool(total_dudosas))
         self.lbl_estado.setText(
             f"Página {r.perfil.numero}: {r.perfil.tipo.value} · Motores: {' + '.join(r.motores) or '—'}"
-            f"{' (votación)' if len(r.motores) > 1 else ''} · Confianza media: {r.confianza_media * 100:.1f} % · "
-            f"Tablas: {len(r.tablas)} · Idioma: {r.idioma or '—'} · Tiempo: {r.segundos:.1f} s"
+            f"{' (votación)' if len(r.motores) > 1 else ''} · Confianza media: {pct(r.confianza_media)} · "
+            f"Tablas: {len(r.tablas)} · Idioma: {r.idioma or '—'} · Tiempo: {num(r.segundos)} s"
         )
 
     # --- corrección ----------------------------------------------------------
@@ -344,13 +423,17 @@ class PaginaRevision(QWidget):
         for w in (self.btn_aceptar, self.btn_cambiar, self.editor):
             w.setEnabled(True)
         self.btn_aceptar_pagina.setEnabled(bool(self._pagina().dudosas))
-        alternativas = "".join(f"<br>{m} leyó: <b>{v}</b>" for m, v in p.alternativas.items())
-        corregida = f"<br>Corregida automáticamente de: <b>{p.corregida_de}</b>" if p.corregida_de else ""
+        # Texto venido del documento: siempre escapado (un documento podría contener HTML)
+        alternativas = "".join(
+            f"<br>{html.escape(str(m))} leyó: <b>{html.escape(str(v))}</b>" for m, v in p.alternativas.items()
+        )
+        corregida = f"<br>Corregida automáticamente de: <b>{html.escape(p.corregida_de)}</b>" if p.corregida_de else ""
         estado = "Palabra dudosa" if p.dudosa else "Palabra"
         self.lbl_palabra.setText(
-            f"<b>{estado} · confianza {p.confianza * 100:.0f} %</b>{alternativas}{corregida}"
+            f"<b>{estado} · confianza {pct(p.confianza, 0)}</b>{alternativas}{corregida}"
         )
-        self.btn_aceptar.setText(f"Está bien: «{p.texto}»")
+        corta = p.texto if len(p.texto) <= 18 else p.texto[:17] + "…"
+        self.btn_aceptar.setText(f"Está bien: «{corta}»")
         self.editor.setText(p.texto)
         self.editor.setFocus()
         self.editor.selectAll()

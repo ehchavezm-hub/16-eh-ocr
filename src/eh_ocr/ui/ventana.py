@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtGui import QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QButtonGroup,
     QHBoxLayout,
     QInputDialog,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QPushButton,
@@ -21,17 +22,19 @@ from PySide6.QtWidgets import (
 from .. import __version__, config, hardware
 from ..documento import listar_archivos
 from ..red import red_bloqueada
-from .estilo import CLARA, OSCURA, qss
+from .estilo import CLARA, icono, qss
 from .paginas import PaginaCola, PaginaInformes, PaginaInicio, etiqueta, tarjeta
 from .revision import PaginaRevision
 from .trabajador import Estado, Trabajador
 
 
-def es_oscuro() -> bool:
+def forzar_tema_claro() -> None:
+    """eh-ocr se ve SIEMPRE en claro (decisión del usuario), aunque Windows esté en modo oscuro.
+    También los diálogos y las barras de desplazamiento de Qt."""
     try:
-        return QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Dark
-    except Exception:
-        return False
+        QGuiApplication.styleHints().setColorScheme(Qt.ColorScheme.Light)  # Qt 6.8 o superior
+    except Exception:  # noqa: BLE001 — versiones anteriores: la hoja de estilo ya fija los colores
+        pass
 
 
 class VentanaPrincipal(QMainWindow):
@@ -40,7 +43,8 @@ class VentanaPrincipal(QMainWindow):
         self.setWindowTitle("eh-ocr")
         self.resize(1280, 820)
         self.setMinimumSize(980, 640)
-        self.paleta = OSCURA if es_oscuro() else CLARA
+        forzar_tema_claro()
+        self.paleta = CLARA
         self.setStyleSheet(qss(self.paleta))
         self.trabajador = Trabajador()
         self._sueltos = False
@@ -58,30 +62,42 @@ class VentanaPrincipal(QMainWindow):
         lv = QVBoxLayout(lateral)
         lv.setContentsMargins(12, 18, 12, 18)
         lv.setSpacing(4)
-        marca = etiqueta("<b style='font-size:13pt'>eh-ocr</b>")
-        lv.addWidget(marca)
-        lv.addSpacing(10)
+        cabecera = QHBoxLayout()
+        cabecera.setContentsMargins(6, 0, 0, 0)
+        cabecera.setSpacing(10)
+        logo = QLabel("eh")
+        logo.setObjectName("logo")
+        logo.setFixedSize(26, 26)
+        logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        cabecera.addWidget(logo)
+        cabecera.addWidget(etiqueta("eh-ocr", "marca"), 1)
+        lv.addLayout(cabecera)
+        lv.addSpacing(18)
 
         self.paginas = QStackedWidget()
-        self.inicio = PaginaInicio(self.trabajador)
-        self.cola = PaginaCola(self.trabajador)
+        self.inicio = PaginaInicio(self.trabajador, self.paleta)
+        self.cola = PaginaCola(self.trabajador, self.paleta)
         self.revision = PaginaRevision(self.trabajador, self.paleta)
-        self.informes = PaginaInformes(self.trabajador)
+        self.informes = PaginaInformes(self.trabajador, self.paleta)
         for w in (self.inicio, self.cola, self.revision, self.informes):
             self.paginas.addWidget(w)
 
         self.grupo = QButtonGroup(self)
         self.botones = {}
-        for clave, nombre, w in (
-            ("inicio", "⤓  Procesar", self.inicio),
-            ("cola", "☰  Lista", self.cola),
-            ("revision", "⌕  Revisar", self.revision),
-            ("informes", "▤  Informes", self.informes),
-        ):
-            b = QPushButton(nombre)
+        for k, (clave, nombre, ic, w) in enumerate((
+            ("inicio", "Procesar", "procesar", self.inicio),
+            ("cola", "Lista", "lista", self.cola),
+            ("revision", "Revisar", "revisar", self.revision),
+            ("informes", "Informes", "informes", self.informes),
+        ), start=1):
+            b = QPushButton("  " + nombre)
             b.setObjectName("nav")
             b.setCheckable(True)
+            b.setIcon(icono(ic, self.paleta))
+            b.setIconSize(QSize(18, 18))
+            b.setToolTip(f"{nombre} (Ctrl+{k})")
             b.clicked.connect(lambda _=False, c=clave: self.mostrar(c))
+            QShortcut(QKeySequence(f"Ctrl+{k}"), self, activated=lambda c=clave: self.mostrar(c))
             self.grupo.addButton(b)
             self.botones[clave] = (b, w)
             lv.addWidget(b)
@@ -89,9 +105,15 @@ class VentanaPrincipal(QMainWindow):
 
         estado = tarjeta()
         le = QVBoxLayout(estado)
-        le.addWidget(etiqueta("<b>Estado del equipo</b>"))
+        le.setContentsMargins(12, 12, 12, 12)
+        le.setSpacing(6)
+        le.addWidget(etiqueta("ESTADO DEL EQUIPO", "seccion"))
         self.lbl_equipo = etiqueta("", "suave", envolver=True)
         self.lbl_equipo.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_equipo.setToolTip(
+            "Verde: listo. Naranja: funciona, con menos precisión.\n"
+            "«Básico» = faltan los modelos precisos: instálalos con instalar.py y el paquete de eh-ocr."
+        )
         le.addWidget(self.lbl_equipo)
         lv.addWidget(estado)
 
@@ -106,6 +128,9 @@ class VentanaPrincipal(QMainWindow):
         self.trabajador.pide_contrasenas.connect(self._pedir_contrasenas)
         self.trabajador.lista_cambiada.connect(self.revision.olvidar)
 
+        # El recuadro de foco solo aparece al moverse con Tab, no después de cada clic.
+        for b in self.findChildren(QPushButton):
+            b.setFocusPolicy(Qt.FocusPolicy.TabFocus)
         self.mostrar("inicio")
         self._actualizar_equipo(cargando=True)
         QTimer.singleShot(200, self._cargar_motores)
@@ -139,36 +164,53 @@ class VentanaPrincipal(QMainWindow):
     def _actualizar_equipo(self, cargando: bool = False) -> None:
         from ..pipeline import Motores
 
+        p = self.paleta
         eq = hardware.detectar()
         m = Motores.obtener()
-        if cargando:
-            motores = "Cargando motores…"
+        filas: list[tuple[str, str]] = []  # (color del punto, texto)
+
+        def fila(color: str, texto: str) -> None:
+            filas.append((color, texto))
+
+        if red_bloqueada():
+            fila(p.ok, "Sin internet: correcto")
         else:
-            motores = (
-                f"● RapidOCR ({m.rapid.modelos}): {'listo' if m.rapid.disponible() else 'no disponible'}<br>"
-                f"● Tesseract: {'listo' if m.tesseract.disponible() else 'no disponible'}"
-            )
-        complemento = config.carpeta_complementos().exists() and any(config.carpeta_complementos().iterdir())
-        if cargando:
-            tablas_txt = "Tablas: cargando…"
+            fila(p.aviso, "Sin internet: no verificado")
+        solo_cpu = (config.carpeta_datos() / "solo_cpu").exists()
+        acelerador = eq.acelerador if cargando else m.rapid.acelerador
+        if solo_cpu:
+            fila(p.aviso, f"Acelerador: {acelerador} (la gráfica falló antes; se usa el procesador)")
         else:
+            fila(p.ok, f"Acelerador: {acelerador}")
+        if cargando:
+            fila(p.texto_suave, "Cargando motores…")
+            fila(p.texto_suave, "Tablas: cargando…")
+        else:
+            rapid = m.rapid.disponible()
+            preciso = m.rapid.modelos == "medium"
+            fila(p.ok if rapid and preciso else (p.aviso if rapid else p.error),
+                 f"RapidOCR: {'listo' if rapid else 'no disponible'}{'' if preciso or not rapid else ', básico'}")
+            tess = m.tesseract.disponible()
+            fila(p.ok if tess else p.aviso, f"Tesseract: {'listo' if tess else 'no disponible'}")
             from ..tablas import ModelosTablas
 
             et = ModelosTablas.obtener().estado
             if et["layout_preciso"] and et["estructuras"] >= 2:
-                tablas_txt = "Tablas: alta precisión"
+                fila(p.ok, "Tablas: alta precisión")
             elif et["layout"]:
-                tablas_txt = "Tablas: básica (faltan modelos precisos)"
+                fila(p.aviso, "Tablas: básica")
             else:
-                tablas_txt = "Tablas: solo con bordes"
+                fila(p.aviso, "Tablas: solo con bordes")
+        complemento = config.carpeta_complementos().exists() and any(config.carpeta_complementos().iterdir())
+        fila(p.ok if complemento else p.texto_suave,
+             f"Manuscritos: {'instalado' if complemento else 'no instalado'}")
+        lineas = "".join(
+            f"<tr><td valign='top' style='color:{color}; padding-right:6px'>●</td><td>{texto}</td></tr>"
+            for color, texto in filas
+        )
         self.lbl_equipo.setText(
-            f"● Sin internet: {'correcto' if red_bloqueada() else 'no verificado'}<br>"
-            f"● Acelerador: {m.rapid.acelerador if not cargando else eq.acelerador}"
-            f"{' (la gráfica falló antes; se usa el procesador)' if (config.carpeta_datos() / 'solo_cpu').exists() else ''}<br>"
-            f"{motores}<br>"
-            f"● {tablas_txt}<br>"
-            f"● Manuscritos y fórmulas: {'instalado' if complemento else 'complemento no instalado'}<br>"
-            f"<br>{eq.descripcion}<br>v{__version__}"
+            f"<table cellspacing='0' cellpadding='1'>{lineas}</table>"
+            f"<p style='margin-top:8px'>{eq.descripcion}<br>versión {__version__}</p>"
         )
 
     # --- cola ---------------------------------------------------------------------

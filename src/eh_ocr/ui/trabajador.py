@@ -233,9 +233,9 @@ class Trabajador(QObject):
                 t.estado = Estado.DUDOSO
                 partes = []
                 if n_dudosas:
-                    partes.append(f"{n_dudosas} palabras dudosas")
+                    partes.append(f"{n_dudosas} palabra{'s' if n_dudosas != 1 else ''} dudosa{'s' if n_dudosas != 1 else ''}")
                 if n_no:
-                    partes.append(f"{n_no} páginas no procesadas")
+                    partes.append(f"{n_no} página{'s' if n_no != 1 else ''} no procesada{'s' if n_no != 1 else ''}")
                 t.mensaje = ", ".join(partes)
             else:
                 t.estado = Estado.LISTO
