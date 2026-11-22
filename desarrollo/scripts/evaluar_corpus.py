@@ -9,12 +9,12 @@ Prepara la carpeta corpus/ (nunca se sube a git):
       factura.correcto.txt
 
 Para crear el .correcto.txt de forma asistida:
-    python scripts/evaluar_corpus.py --borradores
+    python desarrollo/scripts/evaluar_corpus.py --borradores
 genera <nombre>.borrador.txt con el mejor resultado de eh-ocr; corrígelo a mano y
 guárdalo como <nombre>.correcto.txt.
 
 Luego:
-    python scripts/evaluar_corpus.py
+    python desarrollo/scripts/evaluar_corpus.py
 muestra el error por documento (CER/WER) y si cumple las metas
 (< 1 % en escaneos limpios, < 5 % en fotos).
 """
@@ -25,7 +25,7 @@ import argparse
 import sys
 from pathlib import Path
 
-RAIZ = Path(__file__).resolve().parents[1]
+RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ / "src"))
 
 from eh_ocr.documento import EXT_ADMITIDAS  # noqa: E402

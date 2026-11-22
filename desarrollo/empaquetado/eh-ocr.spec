@@ -1,11 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller: paquete portable en carpeta (onedir), sin consola, sin UPX.
-#   pyinstaller eh-ocr.spec --noconfirm
+#   pyinstaller desarrollo/empaquetado/eh-ocr.spec --noconfirm
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-RAIZ = Path(SPECPATH)
+RAIZ = Path(SPECPATH).parents[1]  # este archivo vive en desarrollo/empaquetado/
 RECURSOS = RAIZ / "recursos"
 
 datas = [(str(RECURSOS), "recursos")]
@@ -43,7 +43,7 @@ exe = EXE(
     exclude_binaries=True,
     name="eh-ocr",
     icon=str(RECURSOS / "eh-ocr.ico"),
-    version=str(RAIZ / "version_info.txt"),
+    version=str(Path(SPECPATH) / "version_info.txt"),
     console=False,
     upx=False,
 )

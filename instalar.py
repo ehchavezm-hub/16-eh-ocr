@@ -121,7 +121,7 @@ def main() -> int:
     paso(2, "Instalando eh-ocr y sus librerías (puede tardar unos minutos)")
     pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check"]
     subprocess.run([*pip, "-e", str(RAIZ)], check=True)
-    subprocess.run([*pip, "--no-deps", "-r", str(RAIZ / "requirements-tablas.txt")], check=True)
+    subprocess.run([*pip, "--no-deps", "-r", str(RAIZ / "desarrollo" / "requirements-tablas.txt")], check=True)
     print("  Librerías instaladas ✓")
 
     paso(3, "Copiando modelos precisos y Tesseract desde el ZIP")

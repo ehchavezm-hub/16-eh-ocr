@@ -10,7 +10,7 @@ máquina que construye el paquete, y deja todo en recursos/:
   recursos/tesseract/tessdata/{spa,eng,deu}.traineddata       (tessdata_best)
   recursos/tesseract/tessdata/osd.traineddata                 (detección de orientación)
 
-Uso:  python scripts/preparar_build.py [--tesseract "C:\\Program Files\\Tesseract-OCR"]
+Uso:  python desarrollo/scripts/preparar_build.py [--tesseract "C:\\Program Files\\Tesseract-OCR"]
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ import sys
 import urllib.request
 from pathlib import Path
 
-RAIZ = Path(__file__).resolve().parents[1]
+RAIZ = Path(__file__).resolve().parents[2]
 RECURSOS = RAIZ / "recursos"
 
 TESSDATA_BEST = "https://github.com/tesseract-ocr/tessdata_best/raw/main/{}.traineddata"

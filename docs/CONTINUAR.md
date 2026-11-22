@@ -8,9 +8,9 @@ Estado al 18/11/2026. Todo está en GitHub, en el repositorio privado
 | Archivo | Qué es |
 |---|---|
 | `CLAUDE.md` | Reglas no negociables e inicio/fin de sesión (Claude lo lee solo) |
-| `ALCANCE.md` | Alcance v6: fuente de verdad |
+| `docs/ALCANCE.md` | Alcance v6: fuente de verdad |
 | `docs/eh-ocr-alcance.html` | El alcance completo en una página, con el diagrama de decisión |
-| `CHANGELOG.md` | Qué cambió en 0.1.0 y 0.2.0 |
+| `docs/CHANGELOG.md` | Qué cambió en 0.1.0 y 0.2.0 |
 | `docs/respaldo/historial-conversacion.md` | Todos los mensajes de la conversación de desarrollo (decisiones, errores, pruebas) |
 | `docs/respaldo/mockup/project/*.dc.html` | Copia del mockup aprobado (Inicio, Procesando, Revisión) |
 | `docs/respaldo/pizarra/` | Copia de la pizarra «cómo decide el OCR» (44 elementos en JSON) |
@@ -21,7 +21,7 @@ desde otra cuenta no se abren. Por eso sus contenidos están copiados en `docs/r
 ## 2. Primer mensaje sugerido para la nueva sesión de Claude
 
 > Continúa el desarrollo de eh-ocr. Trabaja en la rama `claude/clever-babbage-km096c` del repo
-> ehchavezm-hub/16-eh-ocr. Lee CLAUDE.md, ALCANCE.md, CHANGELOG.md y docs/CONTINUAR.md antes de
+> ehchavezm-hub/16-eh-ocr. Lee CLAUDE.md, docs/ALCANCE.md, docs/CHANGELOG.md y docs/CONTINUAR.md antes de
 > hacer nada. El historial completo está en docs/respaldo/historial-conversacion.md.
 
 Si la nueva sesión crea otra rama, primero debe traer esta: `git fetch origin claude/clever-babbage-km096c`

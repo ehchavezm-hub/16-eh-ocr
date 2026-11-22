@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-RAIZ = Path(__file__).resolve().parents[1]
+RAIZ = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("instalar", RAIZ / "instalar.py")
 instalar = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(instalar)

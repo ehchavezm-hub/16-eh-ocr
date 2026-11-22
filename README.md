@@ -4,7 +4,24 @@ App de escritorio para Windows dedicada exclusivamente a OCR: **gratuita, autón
 internet) y portable**. Convierte PDF, escaneos y fotos en texto fiel, y marca en amarillo
 lo que no es seguro en lugar de entregarlo como si estuviera bien.
 
-Alcance completo: [ALCANCE.md](ALCANCE.md) · Licencias: [LICENCIAS.md](LICENCIAS.md)
+Alcance completo: [docs/ALCANCE.md](docs/ALCANCE.md) · Licencias: [docs/LICENCIAS.md](docs/LICENCIAS.md) · Cambios: [docs/CHANGELOG.md](docs/CHANGELOG.md)
+
+## Qué hay en la carpeta
+
+```
+eh-ocr\
+├─ Abrir eh-ocr        ← doble clic para abrir la app (lo crea el instalador)
+├─ instalar.py         ← solo la primera vez (o tras actualizar)
+├─ README.md           ← esta guía
+├─ datos\              registro, caídas y trabajos en curso (lo crea la app)
+├─ recursos\           modelos, Tesseract, fuentes e ícono
+├─ src\                código de la app
+├─ docs\               alcance, cambios, licencias, guía para continuar, respaldos
+├─ desarrollo\         pruebas, scripts y archivos para construir el .exe
+├─ guardado\           archivos sueltos movidos aquí al ordenar (no se usan, no se borran)
+├─ CLAUDE.md           instrucciones para Claude (debe estar en la raíz)
+└─ pyproject.toml      lista de librerías de Python (debe estar en la raíz)
+```
 
 ## Usarla
 
@@ -52,7 +69,7 @@ en el Escritorio. Funciona igual que el `.exe`.
 2. **Preproceso**: orientación, enderezado, perspectiva y sombras (fotos), resolución, ruido.
 3. **RapidOCR PP-OCRv6** lee la página; si la confianza es baja, reintenta con otras versiones
    de la imagen.
-4. **Tesseract** lee una vez la mejor versión, en el idioma detectado, y se **vota** palabra a
+4. **Tesseract** lee una vez la mejor versión, solo en los idiomas presentes, y se **vota** palabra a
    palabra. Si una página tarda demasiado o un motor falla, se relee en modo rápido.
 5. **Corrección** de confusiones típicas (rn↔m, 0↔O…) con diccionarios castellano, inglés y alemán.
 6. **Salidas** y revisión: las palabras dudosas se corrigen con un clic.
@@ -70,9 +87,9 @@ Una página con texto digital nunca pasa por OCR: sale exacta e instantánea.
 
 ```bash
 pip install -e ".[dev]"
-pip install --no-deps -r requirements-tablas.txt
+pip install --no-deps -r desarrollo/requirements-tablas.txt
 pytest -v
-python -m pyflakes src tests scripts instalar.py
+python -m pyflakes src desarrollo instalar.py
 ```
 
 (Las librerías de tablas se instalan sin dependencias porque pedirían versiones de
@@ -81,9 +98,9 @@ ONNX Runtime y OpenCV que chocan con las que usa eh-ocr.)
 Para probar con la misma precisión que el `.exe` (descarga una sola vez los modelos):
 
 ```bash
-python scripts/preparar_build.py --solo-modelos
+python desarrollo/scripts/preparar_build.py --solo-modelos
 ```
 
-- Probar con tus documentos: ver `scripts/evaluar_corpus.py` (carpeta `corpus/`, nunca se sube).
+- Probar con tus documentos: ver `desarrollo/scripts/evaluar_corpus.py` (carpeta `corpus/`, nunca se sube).
 - Construir el paquete de Windows: se hace automáticamente en GitHub Actions al crear un
   tag `v*` (o manualmente desde la pestaña Actions → eh-ocr → Run workflow).

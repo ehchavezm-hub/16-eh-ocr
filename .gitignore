@@ -17,3 +17,6 @@ recursos/tesseract/
 /eh-ocr.exe
 /LICENCIAS (*).md
 *.lnk
+
+# Archivos sueltos de la carpeta de la app movidos al ordenar (no se usan, no se borran)
+/guardado/

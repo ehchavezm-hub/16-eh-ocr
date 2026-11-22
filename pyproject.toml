@@ -36,4 +36,4 @@ eh-ocr = "eh_ocr.__main__:main"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["desarrollo/tests"]
