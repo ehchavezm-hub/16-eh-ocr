@@ -37,3 +37,4 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["desarrollo/tests"]
+cache_dir = "desarrollo/.pytest_cache"

@@ -11,7 +11,7 @@ Alcance completo: [docs/ALCANCE.md](docs/ALCANCE.md) · Licencias: [docs/LICENCI
 ```
 eh-ocr\
 ├─ Abrir eh-ocr        ← doble clic para abrir la app (lo crea el instalador)
-├─ instalar.py         ← solo la primera vez (o tras actualizar)
+├─ instalar.py         ← solo la primera vez: doble clic (crea «Abrir eh-ocr»)
 ├─ README.md           ← esta guía
 ├─ datos\              registro, caídas y trabajos en curso (lo crea la app)
 ├─ recursos\           modelos, Tesseract, fuentes e ícono

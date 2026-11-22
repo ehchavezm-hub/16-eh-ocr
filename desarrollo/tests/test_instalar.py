@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,10 @@ import pytest
 RAIZ = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("instalar", RAIZ / "instalar.py")
 instalar = importlib.util.module_from_spec(spec)
+_bytecode = sys.dont_write_bytecode
+sys.dont_write_bytecode = True  # no dejar __pycache__ en la raíz de la carpeta de la app
 spec.loader.exec_module(instalar)
+sys.dont_write_bytecode = _bytecode
 
 
 def _zip_falso(base: Path) -> Path:

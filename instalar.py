@@ -1,6 +1,8 @@
+#!/usr/bin/env python3.13
 """Instalador de eh-ocr sobre Python (para equipos que bloquean .exe sin firma digital).
 
-Se ejecuta UNA vez, desde la carpeta del repositorio:
+Se ejecuta UNA vez: doble clic en instalar.py (pregunta la carpeta del paquete), o desde la
+carpeta del repositorio:
 
     py -3.13 instalar.py "D:\\PST\\x"
 
@@ -153,5 +155,23 @@ def main() -> int:
     return 0
 
 
+def _con_pausa() -> int:
+    """Con doble clic la ventana se cerraría sola: espera Enter para que se pueda leer el resultado."""
+    codigo = 1
+    try:
+        codigo = main()
+    except SystemExit as e:
+        if e.code not in (None, 0):
+            print(f"\n✗ {e.code}" if isinstance(e.code, str) else "\n✗ La instalación no terminó.")
+        codigo = 0 if e.code in (None, 0) else 1
+    except Exception as e:  # noqa: BLE001 — se muestra al usuario en vez de cerrar la ventana
+        print(f"\n✗ Error: {e}")
+    try:
+        input("\nPulsa Enter para cerrar esta ventana.")
+    except EOFError:
+        pass
+    return codigo
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main() if len(sys.argv) >= 2 else _con_pausa())
