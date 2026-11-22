@@ -29,12 +29,37 @@ from .trabajador import Estado, Trabajador
 
 
 def forzar_tema_claro() -> None:
-    """eh-ocr se ve SIEMPRE en claro (decisión del usuario), aunque Windows esté en modo oscuro.
-    También los diálogos y las barras de desplazamiento de Qt."""
+    """eh-ocr se ve SIEMPRE en claro (decisión del usuario), aunque Windows esté en modo oscuro:
+    ventana, mensajes, menús, avisos y barras de desplazamiento."""
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    if app is None:
+        return
     try:
         QGuiApplication.styleHints().setColorScheme(Qt.ColorScheme.Light)  # Qt 6.8 o superior
-    except Exception:  # noqa: BLE001 — versiones anteriores: la hoja de estilo ya fija los colores
+    except Exception:  # noqa: BLE001
         pass
+    # El estilo de Windows 11 en modo oscuro ignora la paleta: Fusion la respeta siempre.
+    app.setStyle("Fusion")
+    p = CLARA
+    paleta = QPalette()
+    for rol, color in (
+        (QPalette.ColorRole.Window, p.fondo), (QPalette.ColorRole.WindowText, p.texto),
+        (QPalette.ColorRole.Base, p.panel), (QPalette.ColorRole.AlternateBase, p.lateral),
+        (QPalette.ColorRole.Text, p.texto), (QPalette.ColorRole.Button, p.panel),
+        (QPalette.ColorRole.ButtonText, p.texto), (QPalette.ColorRole.Highlight, p.acento),
+        (QPalette.ColorRole.HighlightedText, p.acento_texto), (QPalette.ColorRole.ToolTipBase, p.panel),
+        (QPalette.ColorRole.ToolTipText, p.texto), (QPalette.ColorRole.PlaceholderText, p.texto_suave),
+        (QPalette.ColorRole.Link, p.acento),
+    ):
+        paleta.setColor(rol, QColor(color))
+    paleta.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(p.texto_suave))
+    paleta.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(p.texto_suave))
+    app.setPalette(paleta)
+    # Mensajes y diálogos (QMessageBox, contraseña) son ventanas aparte: también con la hoja clara.
+    app.setStyleSheet(qss(p))
 
 
 class VentanaPrincipal(QMainWindow):
